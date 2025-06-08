@@ -1,0 +1,103 @@
+import openai
+import os
+from typing import List, Dict, Any
+import json
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class AIUtils:
+    def __init__(self):
+        self.openai_client = openai.OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url = os.getenv("OPENAI_BASE_URL")
+        )
+        self.embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3")
+        self.llm_model = os.getenv("OPENAI_LLM_MODEL", "deepseek-v3")
+        self.vlm_model = os.getenv("OPENAI_VLM_MODEL", "qwen-vl-plus")
+
+    def get_embedding(self, text: str) -> List[float]:
+        """获取文本的向量嵌入"""
+        try:
+            response = self.openai_client.embeddings.create(
+                model=self.embedding_model,
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            raise Exception(f"获取嵌入向量失败: {str(e)}")
+
+    def get_tags(self, content: str, tag_directory: Dict[str, Any]) -> List[str]:
+        """根据内容和标签字典生成标签"""
+        try:
+            prompt = f"""
+你是一个专业的文档标签生成助手。请根据以下内容和标签字典，为文档片段生成合适的标签。
+
+标签字典：
+{json.dumps(tag_directory, ensure_ascii=False, indent=2)}
+
+文档内容：
+{content}
+
+请从标签字典中选择最相关的标签，返回JSON格式的标签列表。例如：["技术文档", "Python", "API设计"]
+
+要求：
+1. 只返回JSON格式的标签列表
+2. 标签必须来自提供的标签字典
+3. 最多选择5个最相关的标签
+4. 如果没有合适的标签，返回空列表[]
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1
+            )
+
+            result = response.choices[0].message.content.strip()
+            # 尝试解析JSON
+            tags = json.loads(result)
+            return tags if isinstance(tags, list) else []
+
+        except Exception as e:
+            print(f"标签生成失败: {str(e)}")
+            return []
+
+    def get_image_description(self, image_path: str) -> str:
+        """获取图片描述"""
+        try:
+            import base64
+
+            # 读取图片并转换为base64
+            with open(image_path, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+            response = self.openai_client.chat.completions.create(
+                model=self.vlm_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "请详细描述这张图片的内容，包括主要元素、文字信息、图表数据等。描述要准确、详细，便于理解图片传达的信息。"
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.1
+            )
+
+            return response.choices[0].message.content
+
+        except Exception as e:
+            print(f"图片描述生成失败: {str(e)}")
+            return f"[图片描述生成失败: {image_path}]"

@@ -1,0 +1,5 @@
+[MESSAGES CONTROL]
+disable=info
+
+[MASTER]
+init-hook='import sys; sys.path.append("C:\\\\Users\\\\mi\\\\Documents\\\\Kosmos\\\\src")'
