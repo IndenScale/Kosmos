@@ -4,11 +4,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
-Base = declarative_base()
+from app.db.database import Base
 
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
@@ -16,11 +16,11 @@ class User(Base):
     role = Column(String, nullable=False, default="user")  # 'system_admin' or 'user'
     created_at = Column(DateTime, default=func.now())
     is_active = Column(Boolean, default=True)
-    
+
     # 关系
     owned_kbs = relationship("KnowledgeBase", back_populates="owner")
     kb_memberships = relationship("KBMember", back_populates="user")
 
 
 # 在文件末尾添加
-from models.document import Document, KBDocument
+from app.models.document import Document, KBDocument

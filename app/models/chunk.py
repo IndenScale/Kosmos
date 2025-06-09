@@ -1,11 +1,11 @@
 from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.sql import func
-from models.user import Base
+from app.db.database import Base
 
 class Chunk(Base):
     """文档片段表"""
     __tablename__ = "chunks"
-    
+
     id = Column(String, primary_key=True)  # UUID
     kb_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)
@@ -17,7 +17,7 @@ class Chunk(Base):
 class IngestionJob(Base):
     """摄入任务表"""
     __tablename__ = "ingestion_jobs"
-    
+
     id = Column(String, primary_key=True)  # UUID
     kb_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)

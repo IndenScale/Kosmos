@@ -17,3 +17,6 @@ python-jose[cryptography]
 passlib
 python-dotenv
 uvicorn
+markitdown
+pypandoc
+pillow

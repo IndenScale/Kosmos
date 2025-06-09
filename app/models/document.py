@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from models.user import Base
+from app.db.database import Base
 
 class Document(Base):
     """原始文档表 (全局唯一)"""

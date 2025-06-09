@@ -10,6 +10,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# 使用 on_event 装饰器注册启动事件
+@app.on_event("startup")
+def on_startup():
+    print("应用启动，开始创建数据库表...")
+    create_tables()
+    print("数据库表检查/创建完成。")
+
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
@@ -18,9 +25,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 创建数据库表
-create_tables()
 
 # 包含路由
 app.include_router(auth.router)

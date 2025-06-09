@@ -5,7 +5,7 @@ from sqlalchemy.types import JSON
 import json
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from models.user import Base
+from app.db.database import Base
 import uuid
 import enum
 
