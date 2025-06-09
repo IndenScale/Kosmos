@@ -20,7 +20,3 @@ class User(Base):
     # 关系
     owned_kbs = relationship("KnowledgeBase", back_populates="owner")
     kb_memberships = relationship("KBMember", back_populates="user")
-
-
-# 在文件末尾添加
-from app.models.document import Document, KBDocument
