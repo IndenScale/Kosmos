@@ -36,28 +36,55 @@ import {
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
-
+import { TagDictionary } from '../../types/KnowledgeBase';
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 const { confirm } = Modal;
 
-// 清洗标签字典的工具函数
-const cleanTagDictionary = (tagDict: Record<string, any>): Record<string, string[]> => {
-  const cleaned: Record<string, string[]> = {};
-  Object.entries(tagDict || {}).forEach(([category, tags]) => {
-    if (Array.isArray(tags)) {
-      cleaned[category] = tags.filter(tag => typeof tag === 'string' && tag.trim() !== '');
-    } else if (typeof tags === 'string') {
+// 递归清洗标签字典的工具函数
+const cleanTagDictionary = (tagDict: any): TagDictionary => {
+  const cleaned: TagDictionary = {};
+
+  const cleanNode = (node: any): TagDictionary | string[] => {
+    if (Array.isArray(node)) {
+      // 如果是数组，过滤并返回有效的字符串标签
+      return node.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim());
+    } else if (typeof node === 'object' && node !== null) {
+      // 如果是对象，递归处理每个属性
+      const cleanedObj: TagDictionary = {};
+      Object.entries(node).forEach(([key, value]) => {
+        const cleanedValue = cleanNode(value);
+        if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
+          cleanedObj[key] = cleanedValue;
+        } else if (typeof cleanedValue === 'object' && Object.keys(cleanedValue).length > 0) {
+          cleanedObj[key] = cleanedValue;
+        }
+      });
+      return cleanedObj;
+    } else if (typeof node === 'string') {
+      // 如果是字符串，尝试解析为JSON，否则作为单个标签
       try {
-        const parsed = JSON.parse(tags);
-        cleaned[category] = Array.isArray(parsed) ? parsed : [tags];
+        const parsed = JSON.parse(node);
+        return cleanNode(parsed);
       } catch {
-        cleaned[category] = [tags];
+        return node.trim() ? [node.trim()] : [];
       }
     } else {
-      cleaned[category] = [String(tags)];
+      // 其他类型转换为字符串数组
+      const str = String(node).trim();
+      return str ? [str] : [];
+    }
+  };
+
+  Object.entries(tagDict || {}).forEach(([key, value]) => {
+    const cleanedValue = cleanNode(value);
+    if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
+      cleaned[key] = cleanedValue;
+    } else if (typeof cleanedValue === 'object' && Object.keys(cleanedValue).length > 0) {
+      cleaned[key] = cleanedValue;
     }
   });
+
   return cleaned;
 };
 
@@ -73,7 +100,7 @@ export const KBOverviewPage: React.FC = () => {
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagEditMode, setTagEditMode] = useState<'manual' | 'json'>('manual');
   const [tagInput, setTagInput] = useState('');
-  const [editingTags, setEditingTags] = useState<Record<string, string[]>>({});
+  const [editingTags, setEditingTags] = useState<TagDictionary>({});
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState<string>('');
 
@@ -106,8 +133,15 @@ export const KBOverviewPage: React.FC = () => {
   });
 
   // 更新标签字典
+  // Remove the duplicate functions (lines 311-339)
+  // Keep only the first implementations (lines 207-235)
+
+  // Add selectedCategory state
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  // Fix the type issue in updateTagsMutation
   const updateTagsMutation = useMutation({
-    mutationFn: (tags: Record<string, string[]>) =>
+    mutationFn: (tags: TagDictionary) =>
       KnowledgeBaseService.updateTagDictionary(kbId!, tags),
     onSuccess: () => {
       message.success('标签字典更新成功');
@@ -173,23 +207,28 @@ export const KBOverviewPage: React.FC = () => {
     if (!newTags[category]) {
       newTags[category] = [];
     }
-    if (!newTags[category].includes(tagInput.trim())) {
-      newTags[category].push(tagInput.trim());
-      setEditingTags(newTags);
-      // 同步更新JSON
-      setJsonInput(JSON.stringify(newTags, null, 2));
+    // 修改includes调用方式
+    if (Array.isArray(newTags[category])) {
+      const tagArray = newTags[category] as string[];
+      if (!tagArray.includes(tagInput.trim())) {
+        tagArray.push(tagInput.trim());
+        setEditingTags(newTags);
+        setJsonInput(JSON.stringify(newTags, null, 2));
+      }
     }
     setTagInput('');
   };
 
   const handleRemoveTag = (category: string, tag: string) => {
     const newTags = { ...editingTags };
-    newTags[category] = newTags[category].filter(t => t !== tag);
-    if (newTags[category].length === 0) {
-      delete newTags[category];
+    if (Array.isArray(newTags[category])) {
+      newTags[category] = (newTags[category] as string[]).filter(t => t !== tag);
+      if (newTags[category].length === 0) {
+        delete newTags[category];
+      }
+      setEditingTags(newTags);
+      setJsonInput(JSON.stringify(newTags, null, 2));
     }
-    setEditingTags(newTags);
-    setJsonInput(JSON.stringify(newTags, null, 2));
   };
 
   const handleAddCategory = () => {
@@ -223,8 +262,112 @@ export const KBOverviewPage: React.FC = () => {
     }
   };
 
+  // 在cleanTagDictionary函数后添加辅助函数
+
+  // 递归计算标签总数的辅助函数
+  const countTags = (tagDict: TagDictionary): number => {
+    let count = 0;
+    Object.values(tagDict).forEach(value => {
+      if (Array.isArray(value)) {
+        count += value.length;
+      } else {
+        count += countTags(value);
+      }
+    });
+    return count;
+  };
+
+  // 递归查找并移除标签的辅助函数
+  const removeTagFromDict = (tagDict: TagDictionary, targetCategory: string, targetTag: string): TagDictionary => {
+    const newDict: TagDictionary = {};
+
+    Object.entries(tagDict).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        if (key === targetCategory) {
+          const filteredTags = value.filter(tag => tag !== targetTag);
+          if (filteredTags.length > 0) {
+            newDict[key] = filteredTags;
+          }
+        } else {
+          newDict[key] = [...value];
+        }
+      } else {
+        const nestedResult = removeTagFromDict(value, targetCategory, targetTag);
+        if (Object.keys(nestedResult).length > 0) {
+          newDict[key] = nestedResult;
+        }
+      }
+    });
+
+    return newDict;
+  };
+
+  // 递归添加标签的辅助函数
+  const addTagToDict = (tagDict: TagDictionary, category: string, tag: string): TagDictionary => {
+    const newDict = { ...tagDict };
+
+    if (!newDict[category]) {
+      newDict[category] = [];
+    }
+
+    if (Array.isArray(newDict[category])) {
+      const currentTags = newDict[category] as string[];
+      if (!currentTags.includes(tag)) {
+        newDict[category] = [...currentTags, tag];
+      }
+    }
+
+    return newDict;
+  };
+
+  // const handleAddTag = () => {
+  //   if (!tagInput.trim() || !selectedCategory) return;
+
+  //   const newTags = addTagToDict(editingTags, selectedCategory, tagInput.trim());
+  //   setEditingTags(newTags);
+  //   setJsonInput(JSON.stringify(newTags, null, 2));
+  //   setTagInput('');
+  // };
+
+  // const handleRemoveTag = (category: string, tag: string) => {
+  //   const newTags = removeTagFromDict(editingTags, category, tag);
+  //   setEditingTags(newTags);
+  //   setJsonInput(JSON.stringify(newTags, null, 2));
+  // };
+
+  // const handleAddCategory = () => {
+  //   if (!tagInput.trim()) return;
+
+  //   const newTags = { ...editingTags };
+  //   if (!newTags[tagInput.trim()]) {
+  //     newTags[tagInput.trim()] = [];
+  //     setEditingTags(newTags);
+  //     setJsonInput(JSON.stringify(newTags, null, 2));
+  //   }
+  //   setTagInput('');
+  // };
+
+  // JSON编辑模式处理
+  // const handleJsonChange = (value: string) => {
+  //   setJsonInput(value);
+  //   setJsonError('');
+
+  //   if (!value.trim()) {
+  //     setEditingTags({});
+  //     return;
+  //   }
+
+  //   const validation = KnowledgeBaseService.validateTagDictionary(value);
+  //   if (validation.isValid && validation.data) {
+  //     setEditingTags(validation.data);
+  //     setJsonError('');
+  //   } else {
+  //     setJsonError(validation.error || '格式错误');
+  //   }
+  // };
+
   const handleSaveTags = () => {
-    const totalTags = Object.values(editingTags).flat().length;
+    const totalTags = countTags(editingTags);
     if (totalTags > 250) {
       message.error('标签总数不能超过250个');
       return;

@@ -24,7 +24,8 @@ class KBDocumentResponse(BaseModel):
     uploaded_by: str
     upload_at: datetime
     document: DocumentResponse
-    chunk_count: int = 0  # 新增字段
+    chunk_count: int = 0
+    uploader_username: Optional[str] = None  # 新增用户名字段
     
     class Config:
         from_attributes = True

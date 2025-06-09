@@ -24,12 +24,17 @@ export interface KBMember {
   created_at: string;
 }
 
+// 定义递归的标签字典类型
+export type TagDictionary = {
+  [key: string]: TagDictionary | string[];
+};
+
 export interface KnowledgeBase {
   id: string;
   name: string;
   description?: string;
   owner_id: string;
-  tag_dictionary: Record<string, any>;
+  tag_dictionary: TagDictionary;
   milvus_collection_id?: string;
   is_public: boolean;
   created_at: string;

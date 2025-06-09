@@ -1,13 +1,16 @@
 // src/services/KnowledgeBase.ts:
 import axios from 'axios';
 import { KBCreate, KBUpdate, KnowledgeBase, KBDetail } from '../types/KnowledgeBase';
+import apiClient from './apiClient';
+import { TagDictionary } from '../types/KnowledgeBase';
 
+// Remove the duplicate axios.create() declaration and use the imported apiClient instead
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-});
+// const apiClient = axios.create({
+//   baseURL: API_BASE_URL,
+//   timeout: 10000,
+// });
 
 // Request interceptor
 apiClient.interceptors.request.use((config) => {
@@ -37,7 +40,7 @@ export const KnowledgeBaseService = {
   },
 
   async getMyKBs(): Promise<KnowledgeBase[]> {
-    const response = await apiClient.get('/kbs');
+    const response = await apiClient.get('/api/v1/kbs');
     return response.data;
   },
 
@@ -55,10 +58,9 @@ export const KnowledgeBaseService = {
     await apiClient.delete(`/kbs/${kbId}`);
   },
 
-  async updateTagDictionary(kbId: string, tagDictionary: Record<string, string[]>): Promise<void> {
-    await apiClient.put(`/kbs/${kbId}/tags`, {
-      tag_dictionary: tagDictionary
-    });
+  // 确保updateTagDictionary方法接受TagDictionary类型
+  updateTagDictionary: (kbId: string, tagDictionary: TagDictionary) => {
+    return apiClient.put(`/kbs/${kbId}/tags`, { tag_dictionary: tagDictionary });
   },
 
   async getKBStats(kbId: string): Promise<{

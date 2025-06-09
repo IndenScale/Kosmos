@@ -40,9 +40,10 @@ export const KBDocumentManagePage: React.FC = () => {
   const [processingDocs, setProcessingDocs] = useState<Set<string>>(new Set());
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
-  const isDocumentSelectable = (record: DocumentRecord) => {
-    return (record.chunk_count === 0 || record.chunk_count === undefined) && !processingDocs.has(record.document_id);
-  };
+  // 移除 isDocumentSelectable 函数，所有文档都可以被选中
+  // const isDocumentSelectable = (record: DocumentRecord) => {
+  //   return (record.chunk_count === 0 || record.chunk_count === undefined) && !processingDocs.has(record.document_id);
+  // };
 
   // 获取文档列表
   const { data: documentsData, isLoading } = useQuery({
@@ -55,57 +56,47 @@ export const KBDocumentManagePage: React.FC = () => {
   const selectionState = useMemo(() => {
     if (!documentsData?.documents) return SelectionState.NONE;
 
-    const allSelectableIds = documentsData.documents
-      .filter((doc: DocumentRecord) => isDocumentSelectable(doc))
-      .map((doc: DocumentRecord) => doc.document_id);
-
+    // 所有文档都可以被选中，不再过滤
+    const allDocumentIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
     const currentPageIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
-    const currentPageSelectableIds = currentPageIds.filter((id: string) =>
-      allSelectableIds.includes(id)
-    );
 
     if (selectedRowKeys.length === 0) {
       return SelectionState.NONE;
-    } else if (selectedRowKeys.length === allSelectableIds.length && allSelectableIds.length > 0) {
+    } else if (selectedRowKeys.length === allDocumentIds.length && allDocumentIds.length > 0) {
       return SelectionState.ALL;
     } else if (
-      currentPageSelectableIds.length > 0 &&
-      currentPageSelectableIds.every((id: string) => selectedRowKeys.includes(id))
+      currentPageIds.length > 0 &&
+      currentPageIds.every((id: string) => selectedRowKeys.includes(id))
     ) {
       return SelectionState.PAGE;
     } else {
       return SelectionState.PARTIAL;
     }
-  }, [selectedRowKeys, documentsData, processingDocs]);
+  }, [selectedRowKeys, documentsData]);
 
   // 处理选择状态切换
   const handleSelectionChange = () => {
     if (!documentsData?.documents) return;
 
-    const allSelectableIds = documentsData.documents
-      .filter((doc: DocumentRecord) => isDocumentSelectable(doc))
-      .map((doc: DocumentRecord) => doc.document_id);
-
+    // 所有文档都可以被选中
+    const allDocumentIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
     const currentPageIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
-    const currentPageSelectableIds = currentPageIds.filter((id: string) =>
-      allSelectableIds.includes(id)
-    );
 
     switch (selectionState) {
       case SelectionState.NONE:
         // 未选择 -> 本页全选
-        setSelectedRowKeys(currentPageSelectableIds);
+        setSelectedRowKeys(currentPageIds);
         break;
       case SelectionState.PARTIAL:
         // 部分选择 -> 本页全选
         setSelectedRowKeys([
           ...selectedRowKeys,
-          ...currentPageSelectableIds.filter((id: string) => !selectedRowKeys.includes(id))
+          ...currentPageIds.filter((id: string) => !selectedRowKeys.includes(id))
         ]);
         break;
       case SelectionState.PAGE:
         // 本页全选 -> 全部选择
-        setSelectedRowKeys(allSelectableIds);
+        setSelectedRowKeys(allDocumentIds);
         break;
       case SelectionState.ALL:
         // 全部选择 -> 未选择
@@ -170,13 +161,37 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   };
 
-  // 处理批量摄取
+  // 处理批量摄取 - 在这里进行摄取条件判断
   const handleBatchIngest = () => {
     if (selectedRowKeys.length === 0) {
       message.warning('请选择要摄取的文档');
       return;
     }
-    batchIngestMutation.mutate(selectedRowKeys);
+
+    // 过滤出可以摄取的文档（未摄取且未在处理中）
+    const selectedDocs = documentsData?.documents?.filter(
+      (doc: DocumentRecord) => selectedRowKeys.includes(doc.document_id)
+    ) || [];
+
+    const ingestableDocIds = selectedDocs
+      .filter((doc: DocumentRecord) => {
+        const isProcessing = processingDocs.has(doc.document_id);
+        const isIngested = doc.chunk_count && doc.chunk_count > 0;
+        return !isProcessing && !isIngested;
+      })
+      .map((doc: DocumentRecord) => doc.document_id);
+
+    if (ingestableDocIds.length === 0) {
+      message.warning('选中的文档中没有可以摄取的文档（未摄取且未在处理中）');
+      return;
+    }
+
+    if (ingestableDocIds.length < selectedRowKeys.length) {
+      const skippedCount = selectedRowKeys.length - ingestableDocIds.length;
+      message.info(`将摄取 ${ingestableDocIds.length} 个文档，跳过 ${skippedCount} 个已摄取或正在处理的文档`);
+    }
+
+    batchIngestMutation.mutate(ingestableDocIds);
   };
 
   // // 获取文档列表
@@ -356,7 +371,7 @@ export const KBDocumentManagePage: React.FC = () => {
       render: (_: any, record: DocumentRecord) => (
         <Checkbox
           checked={selectedRowKeys.includes(record.document_id)}
-          disabled={!isDocumentSelectable(record)}
+          // 移除 disabled 属性，所有文档都可以被选中
           onChange={(e) => {
             if (e.target.checked) {
               setSelectedRowKeys([...selectedRowKeys, record.document_id]);
