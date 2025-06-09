@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+*/*__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -72,9 +73,10 @@ tmp/
 *.temp
 
 # Data files (可根据需要调整)
-data/db/
-data/documents/
-data/knowledge_base/
+data/db/*
+!data/db
+data/documents/*
+!data/documents
 
 # Environment specific
 .env.local
@@ -119,3 +121,6 @@ cython_debug/
 
 # Trae AI
 .trae/
+
+# Node
+frontend/node_modules/

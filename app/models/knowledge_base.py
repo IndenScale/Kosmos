@@ -20,14 +20,26 @@ class JSONEncodedDict(TypeDecorator):
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            value = json.dumps(value, ensure_ascii=False) if value is not None else "{}"
-        return value
+            if isinstance(value, dict):
+                return json.dumps(value, ensure_ascii=False)
+            elif isinstance(value, str):
+                # 如果已经是字符串，先验证是否为有效JSON
+                try:
+                    json.loads(value)
+                    return value
+                except (json.JSONDecodeError, TypeError):
+                    return "{}"
+            else:
+                return "{}"
+        return "{}"
 
     def process_result_value(self, value, dialect):
-        try:
-            return json.loads(value) if value else {}
-        except (TypeError, json.JSONDecodeError):
-            return {}
+        if value:
+            try:
+                return json.loads(value)
+            except (TypeError, json.JSONDecodeError):
+                return {}
+        return {}
 
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"

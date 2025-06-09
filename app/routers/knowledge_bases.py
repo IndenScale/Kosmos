@@ -47,12 +47,26 @@ def list_my_knowledge_bases(
 
     result = []
     for kb in kbs:
-        kb_data = KBResponse.from_orm(kb)
         # 确保tag_dictionary是字典格式
         if isinstance(kb.tag_dictionary, str):
-            kb_data.tag_dictionary = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
+            try:
+                tag_dict = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
+            except (json.JSONDecodeError, TypeError):
+                tag_dict = {}
         else:
-            kb_data.tag_dictionary = kb.tag_dictionary or {}
+            tag_dict = kb.tag_dictionary or {}
+        
+        # 手动构建响应对象，避免from_orm的类型验证问题
+        kb_data = KBResponse(
+            id=kb.id,
+            name=kb.name,
+            description=kb.description,
+            owner_id=kb.owner_id,
+            tag_dictionary=tag_dict,
+            milvus_collection_id=kb.milvus_collection_id,
+            is_public=kb.is_public,
+            created_at=kb.created_at
+        )
         result.append(kb_data)
 
     return result

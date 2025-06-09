@@ -191,8 +191,8 @@ class KBService:
             )
 
         if tag_data.tag_dictionary:
-            # 直接设置标签字典
-            kb.tag_dictionary = json.dumps(tag_data.tag_dictionary, ensure_ascii=False)
+            # 直接设置字典，让SQLAlchemy的类型转换器处理
+            kb.tag_dictionary = tag_data.tag_dictionary
         else:
             # TODO: 使用LLM生成标签字典
             # 这里暂时返回一个示例字典
@@ -206,7 +206,8 @@ class KBService:
                     "运营": ["用户增长", "数据分析"]
                 }
             }
-            kb.tag_dictionary = json.dumps(sample_dict, ensure_ascii=False)
+            # 直接设置字典，让SQLAlchemy的类型转换器处理
+            kb.tag_dictionary = sample_dict
 
         self.db.commit()
         self.db.refresh(kb)

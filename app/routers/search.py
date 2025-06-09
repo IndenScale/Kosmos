@@ -41,8 +41,8 @@ def get_chunk(
 def search_knowledge_base(
     kb_id: str = Path(...),
     query: SearchQuery = ...,
-    current_user: User = Depends(get_kb_or_public),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_kb_or_public)
 ):
     """在指定知识库中执行语义搜索"""
     search_service = SearchService(db)
