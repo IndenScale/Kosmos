@@ -30,8 +30,11 @@ def create_knowledge_base(
     # 解析tag_dictionary为字典格式
 
     response_data = KBResponse.from_orm(kb)
-    if kb.tag_dictionary and type(kb.tag_dictionary) == str:
-        response_data.tag_dictionary = json.loads(kb.tag_dictionary)
+    if kb.tag_dictionary:
+        if type(kb.tag_dictionary) == str:
+            response_data.tag_dictionary = json.loads(kb.tag_dictionary)
+        elif type(kb.tag_dictionary) == dict:
+            response_data.tag_dictionary = kb.tag_dictionary
     else:
         response_data.tag_dictionary = {}
     return response_data
@@ -50,12 +53,13 @@ def list_my_knowledge_bases(
         # 确保tag_dictionary是字典格式
         if isinstance(kb.tag_dictionary, str):
             try:
-                tag_dict = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
+                tag_dict = kb.tag_dictionary
+                # tag_dict = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
             except (json.JSONDecodeError, TypeError):
                 tag_dict = {}
         else:
             tag_dict = kb.tag_dictionary or {}
-        
+
         # 手动构建响应对象，避免from_orm的类型验证问题
         kb_data = KBResponse(
             id=kb.id,
@@ -105,7 +109,8 @@ def get_knowledge_base(
         "name": kb.name,
         "description": kb.description,
         "owner_id": kb.owner_id,
-        "tag_dictionary": json.loads(kb.tag_dictionary) if kb.tag_dictionary else {},
+        # "tag_dictionary": json.loads(kb.tag_dictionary) if kb.tag_dictionary else {},
+        "tag_dictionary": kb.tag_dictionary,
         "is_public": kb.is_public,
         "created_at": kb.created_at,
         "members": member_responses,
@@ -152,7 +157,8 @@ def update_tag_dictionary(
 
     return {
         "message": "Tag dictionary updated successfully",
-        "tag_dictionary": json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
+        # "tag_dictionary": json.loads(kb.tag_dictionary) if kb.tag_dictionary and kb.tag_dictionary.strip() else {},
+        "tag_dictionary": kb.tag_dictionary
     }
 
 @router.get("/{kb_id}/members", response_model=List[KBMemberResponse])

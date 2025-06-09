@@ -68,5 +68,47 @@ export const KnowledgeBaseService = {
   }> {
     const response = await apiClient.get(`/kbs/${kbId}/stats`);
     return response.data;
-  }
+  },
+  async updateKBBasicInfo(kbId: string, data: { name?: string; description?: string }): Promise<KnowledgeBase> {
+    const response = await apiClient.patch(`/kbs/${kbId}/basic`, data);
+    return response.data;
+  },
+
+  // 验证JSON格式的标签字典（在 updateTagDictionary 方法后添加）
+  validateTagDictionary(jsonString: string): { isValid: boolean; data?: Record<string, string[]>; error?: string } {
+    try {
+      const parsed = JSON.parse(jsonString);
+
+      // 检查是否为对象
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return { isValid: false, error: '标签字典必须是一个对象' };
+      }
+
+      // 验证和清理数据
+      const cleaned: Record<string, string[]> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof key !== 'string' || key.trim() === '') {
+          return { isValid: false, error: '分类名称必须是非空字符串' };
+        }
+
+        if (Array.isArray(value)) {
+          // 验证数组中的每个元素都是字符串
+          const tags = value.filter(item => typeof item === 'string' && item.trim() !== '');
+          cleaned[key.trim()] = tags.map(tag => tag.trim());
+        } else {
+          return { isValid: false, error: `分类 "${key}" 的值必须是字符串数组` };
+        }
+      }
+
+      // 检查标签总数
+      const totalTags = Object.values(cleaned).flat().length;
+      if (totalTags > 250) {
+        return { isValid: false, error: `标签总数 (${totalTags}) 超过限制 (250)` };
+      }
+
+      return { isValid: true, data: cleaned };
+    } catch (error) {
+      return { isValid: false, error: 'JSON 格式无效' };
+    }
+  },
 };

@@ -24,6 +24,7 @@ class KBDocumentResponse(BaseModel):
     uploaded_by: str
     upload_at: datetime
     document: DocumentResponse
+    chunk_count: int = 0  # 新增字段
     
     class Config:
         from_attributes = True

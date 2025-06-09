@@ -68,12 +68,12 @@ class IngestionService:
             kb = self.kb_service.get_kb_by_id(kb_id)
             if not kb:
                 raise Exception(f"知识库不存在: {kb_id}")
-            
-            tag_directory = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
-            
+
+            # tag_directory = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
+            tag_directory = kb.tag_dictionary
             # 3. 确保Milvus Collection存在
             collection_name = self._ensure_milvus_collection(kb)
-            
+
             # 4. 选择合适的处理器
             processor = self.processor_factory.get_processor(document.file_path)
             if not processor:
@@ -92,7 +92,7 @@ class IngestionService:
             # 8. 处理每个chunk
             chunks = []
             milvus_data = []
-            
+
             for i, chunk_text in enumerate(chunk_texts):
                 # 生成标签
                 tags = self.ai_utils.get_tags(chunk_text, tag_directory)
@@ -111,7 +111,7 @@ class IngestionService:
                     tags=json.dumps(tags, ensure_ascii=False)
                 )
                 chunks.append(chunk)
-                
+
                 # 准备Milvus数据
                 milvus_data.append({
                     "chunk_id": chunk_id,
@@ -176,12 +176,12 @@ class IngestionService:
             else:
                 # collection不存在，需要重新创建
                 print(f"警告: 知识库 {kb.id} 的collection {kb.milvus_collection_id} 不存在，将重新创建")
-        
+
         # 创建新的collection
         collection_name = self.milvus_repo.create_collection(kb.id)
-        
+
         # 更新知识库记录
         kb.milvus_collection_id = collection_name
         self.db.commit()
-        
+
         return collection_name

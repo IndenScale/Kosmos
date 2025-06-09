@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from repositories.document_repo import DocumentRepository
+from repositories.chunk_repo import ChunkRepository
 from models.document import Document, KBDocument
 from typing import List, Optional
 import mimetypes
@@ -12,6 +13,7 @@ class DocumentService:
     def __init__(self, db: Session):
         self.db = db
         self.doc_repo = DocumentRepository(db)
+        self.chunk_repo = ChunkRepository(db)  # 新增
         self.storage_path = Path("data/documents")
         self.storage_path.mkdir(parents=True, exist_ok=True)
     
@@ -87,6 +89,25 @@ class DocumentService:
     def get_kb_documents(self, kb_id: str) -> List[KBDocument]:
         """获取知识库中的所有文档"""
         return self.doc_repo.get_kb_documents(kb_id)
+    
+    def get_kb_documents_with_chunk_count(self, kb_id: str) -> List[dict]:
+        """获取知识库中的所有文档及其chunks数量"""
+        kb_documents = self.doc_repo.get_kb_documents(kb_id)
+        result = []
+        
+        for kb_doc in kb_documents:
+            chunks = self.chunk_repo.get_chunks_by_document(kb_doc.document_id)
+            doc_dict = {
+                "kb_id": kb_doc.kb_id,
+                "document_id": kb_doc.document_id,
+                "uploaded_by": kb_doc.uploaded_by,
+                "upload_at": kb_doc.upload_at,
+                "document": kb_doc.document,
+                "chunk_count": len(chunks)
+            }
+            result.append(doc_dict)
+        
+        return result
     
     def get_kb_document(self, kb_id: str, document_id: str) -> Optional[KBDocument]:
         """获取知识库中的特定文档"""

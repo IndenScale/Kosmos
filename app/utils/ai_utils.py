@@ -57,8 +57,15 @@ class AIUtils:
             )
 
             result = response.choices[0].message.content.strip()
-            # 尝试解析JSON
-            tags = json.loads(result)
+            # 提取第一个和最后一个{}之间的内容
+            try:
+                first_brace = result.index('[')
+                last_brace = result.rindex(']')
+                json_str = result[first_brace:last_brace+1]
+                tags = json.loads(json_str)
+            except (ValueError, json.JSONDecodeError) as e:
+                print(f"JSON解析失败: {str(e)}, 原始内容: {result}")
+                return []
             return tags if isinstance(tags, list) else []
 
         except Exception as e:

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Input, Card, Tag, Typography, Spin, Alert, Empty, Divider, Row, Col, Button, Modal } from 'antd';
-import { SearchOutlined, FileTextOutlined, ExpandAltOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Input, Card, Tag, Typography, Spin, Alert, Empty, Divider, Row, Col, Button, Modal, Tooltip } from 'antd';
+import { SearchOutlined, FileTextOutlined, ExpandAltOutlined, DownloadOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { searchService } from '../../services/searchService';
 import { documentService } from '../../services/documentService';
@@ -18,6 +18,7 @@ export const KBSearchPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedChunk, setExpandedChunk] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [hoveredResult, setHoveredResult] = useState<string | null>(null);
 
   // 构建完整查询字符串
   const fullQuery = useMemo(() => {
@@ -63,6 +64,13 @@ export const KBSearchPage: React.FC = () => {
       const parsed = QueryParser.parse(trimmedValue);
       setSearchText(parsed.text);
     }
+  };
+
+  // 处理输入框变化 - 允许自由输入空格和其他字符
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // 直接设置完整查询，不做解析处理
+    setSearchText(value);
   };
 
   // 处理标签点击
@@ -137,7 +145,6 @@ export const KBSearchPage: React.FC = () => {
     return 'default';
   };
 
-
   // 获取推荐标签（排除已激活的）
   const recommendedTags = useMemo(() => {
     if (!searchData?.recommended_tags) return [];
@@ -159,8 +166,8 @@ export const KBSearchPage: React.FC = () => {
     ));
   };
 
-  // 限制内容显示行数（增加到3行）
-  const truncateContent = (content: string, maxLines: number = 3) => {
+  // 限制内容显示行数，悬浮时显示完整内容
+  const truncateContent = (content: string, maxLines: number = 5) => {
     const lines = content.split('\n');
     if (lines.length <= maxLines) return content;
     return lines.slice(0, maxLines).join('\n') + '...';
@@ -189,6 +196,13 @@ export const KBSearchPage: React.FC = () => {
     setModalVisible(true);
   };
 
+  // 计算EIG说明文本
+  const getEIGExplanation = (hits: number, totalResults: number) => {
+    return `EIG分数计算方式：ABS(${hits} - ${totalResults} / 2) = ${Math.abs(hits - totalResults / 2).toFixed(2)}
+
+EIG分数越低（越接近0），标签质量越高。`;
+  };
+
   return (
     <div className="p-6">
       {/* 搜索框 */}
@@ -196,15 +210,8 @@ export const KBSearchPage: React.FC = () => {
         <Search
           placeholder="输入查询语句，例如：AI未来发展 +技术 -历史 ~应用"
           size="large"
-          value={fullQuery}
-          onChange={(e) => {
-            const value = e.target.value;
-            // 只更新输入框显示，不触发搜索
-            const parsed = QueryParser.parse(value);
-            setSearchText(parsed.text);
-            const newActiveTags = QueryParser.getActiveTagsFromQuery(value);
-            setActiveTags(newActiveTags);
-          }}
+          value={searchText}
+          onChange={handleInputChange}
           onSearch={handleSearch}
           enterButton={<SearchOutlined />}
           allowClear
@@ -271,8 +278,15 @@ export const KBSearchPage: React.FC = () => {
                 <div className="space-y-4">
                   {searchData.results.map((result: SearchResult) => {
                     const document = documentsData?.[result.document_id];
+                    const isHovered = hoveredResult === result.chunk_id;
+
                     return (
-                      <Card key={result.chunk_id} className="hover:shadow-md transition-shadow">
+                      <Card
+                        key={result.chunk_id}
+                        className="hover:shadow-md transition-shadow"
+                        onMouseEnter={() => setHoveredResult(result.chunk_id)}
+                        onMouseLeave={() => setHoveredResult(null)}
+                      >
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center text-sm text-gray-500">
                             <FileTextOutlined className="mr-1" />
@@ -304,7 +318,7 @@ export const KBSearchPage: React.FC = () => {
                         </div>
 
                         <Paragraph className="mb-3">
-                          {truncateContent(result.content, 3)}
+                          {isHovered ? result.content : truncateContent(result.content, 5)}
                         </Paragraph>
 
                         {result.tags.length > 0 && (
@@ -326,16 +340,33 @@ export const KBSearchPage: React.FC = () => {
         <Col span={6}>
           {recommendedTags.length > 0 && (
             <Card title="推荐标签" className="sticky top-4">
-              <div className="flex flex-wrap">
-                {recommendedTags.map(({ tag, eig_score }) => (
-                  <Tag
+              <div className="space-y-2">
+                {recommendedTags.map(({ tag, eig_score, freq }) => (
+                  <div
                     key={tag}
-                    color="geekblue"
-                    style={{ margin: '2px', cursor: 'pointer' }}
+                    className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
                     onClick={() => handleTagClick(tag)}
                   >
-                    {tag} ({eig_score.toFixed(2)})
-                  </Tag>
+                    <div className="flex items-center flex-1">
+                      <Tag color="geekblue" className="mb-0 mr-2">
+                        {tag}
+                      </Tag>
+                      <Text type="secondary" className="text-xs">
+                        hits: {freq || 0}
+                      </Text>
+                    </div>
+                    <div className="flex items-center">
+                      <Text className="text-xs mr-1">
+                        {eig_score.toFixed(2)}
+                      </Text>
+                      <Tooltip
+                        title={getEIGExplanation(freq || 0, searchData?.results.length || 0)}
+                        placement="left"
+                      >
+                        <QuestionCircleOutlined className="text-gray-400 cursor-help" />
+                      </Tooltip>
+                    </div>
+                  </div>
                 ))}
               </div>
             </Card>

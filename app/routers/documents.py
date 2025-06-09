@@ -62,9 +62,9 @@ def list_documents(
 ):
     """列出知识库中的所有文档"""
     doc_service = DocumentService(db)
-    kb_documents = doc_service.get_kb_documents(kb_id)
-
-    documents = [KBDocumentResponse.from_orm(kb_doc) for kb_doc in kb_documents]
+    documents_data = doc_service.get_kb_documents_with_chunk_count(kb_id)
+    
+    documents = [KBDocumentResponse(**doc_data) for doc_data in documents_data]
 
     return DocumentListResponse(
         documents=documents,
