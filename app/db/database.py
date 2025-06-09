@@ -3,7 +3,6 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base # 导入 declarative_base
-# from models.user import Base
 
 
 # 数据库文件路径
@@ -29,7 +28,7 @@ Base = declarative_base()
 
 # 创建数据库表
 def create_tables():
-    from app.models import user, knowledge_base, document, chunk
+    # from app.models import user, knowledge_base, document, chunk
     Base.metadata.create_all(bind=engine)
 
 # 获取数据库会话

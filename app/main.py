@@ -1,7 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from db.database import create_tables
-from routers import auth, knowledge_bases, documents, ingestion, search
+from app.db.database import create_tables
+from app.routers import auth, knowledge_bases, documents, ingestion, search
+
+from app.db.database import Base
+# import app.models.user
+# import app.models.knowledge_base
+# import app.models.document
+# import app.models.chunk
 
 # 创建FastAPI应用
 app = FastAPI(
