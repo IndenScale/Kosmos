@@ -49,6 +49,7 @@ export interface DocumentUploadResponse {
 
 export interface DocumentDeleteResponse {
   message: string;
+  success: boolean;
 }
 
 // 选择状态枚举

@@ -151,19 +151,27 @@ export const KBDocumentManagePage: React.FC = () => {
   // 文档删除
   const deleteMutation = useMutation({
     mutationFn: (documentId: string) => documentService.deleteDocument(kbId!, documentId),
-    onSuccess: (data, documentId) => {
+    onSuccess: () => {
       message.success('文档删除成功');
       queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-      setSelectedRowKeys(prev => prev.filter(id => id !== documentId));
     },
     onError: (error: any) => {
-      message.error(error.response?.data?.detail || '删除失败');
-    },
+      // 检查是否是超时错误但可能成功的情况
+      if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+        message.warning('删除请求超时，请刷新页面确认删除结果');
+        // 延迟刷新数据
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
+        }, 2000);
+      } else {
+        message.error(`删除失败: ${error.message}`);
+      }
+    }
   });
 
   // 文档摄取
   const ingestMutation = useMutation({
-    mutationFn: (documentId: string) => ingestionService.startIngestion(kbId!, documentId),
+    mutationFn: (documentId: string) => ingestionService.processDocument(kbId!, documentId),
     onSuccess: (data, documentId) => {
       message.success('摄取任务已启动');
       setProcessingDocs(prev => new Set([...prev, documentId]));
@@ -173,25 +181,126 @@ export const KBDocumentManagePage: React.FC = () => {
       message.error(error.response?.data?.detail || '摄取启动失败');
     },
   });
+    // 批量删除
+    const batchDeleteMutation = useMutation({
+      mutationFn: (documentIds: string[]) => documentService.deleteDocuments(kbId!, documentIds),
+      onSuccess: (results, documentIds) => {
+        const successCount = results.filter(result => result.success).length;
+        const failedCount = results.length - successCount;
 
-  // 批量摄取
-  const batchIngestMutation = useMutation({
-    mutationFn: (documentIds: string[]) => ingestionService.startBatchIngestion(kbId!, documentIds),
-    onSuccess: (results, documentIds) => {
-      message.success(`已启动 ${results.success_count} 个文档的摄取任务`);
-      if (results.failed_count > 0) {
-        message.warning(`${results.failed_count} 个文档摄取启动失败`);
-      }
-      setProcessingDocs(prev => new Set([...prev, ...documentIds]));
-      results.jobs.forEach((job, index) => {
-        pollJobStatus(job.id, documentIds[index]);
+        if (successCount > 0) {
+          message.success(`成功删除 ${successCount} 个文档`);
+        }
+        if (failedCount > 0) {
+          message.error(`${failedCount} 个文档删除失败`);
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
+        setSelectedRowKeys([]);
+      },
+      onError: (error: any) => {
+        message.error(error.response?.data?.detail || '批量删除失败');
+      },
+    });
+
+    // 合并的批量处理mutation
+const batchProcessMutation = useMutation({
+  mutationFn: ({ documentIds, forceReindex }: { documentIds: string[], forceReindex: boolean }) =>
+    ingestionService.processBatchDocuments(kbId!, documentIds, forceReindex),
+  onSuccess: (results, { documentIds, forceReindex }) => {
+    const action = forceReindex ? '重索引' : '摄取';
+    message.success(`已启动 ${results.success_count} 个文档的${action}任务`);
+    if (results.failed_count > 0) {
+      message.warning(`${results.failed_count} 个文档${action}启动失败`);
+    }
+    setProcessingDocs(prev => new Set([...prev, ...documentIds]));
+    results.jobs.forEach((job, index) => {
+      pollJobStatus(job.id, documentIds[index]);
+    });
+    setSelectedRowKeys([]);
+  },
+  onError: (error: any) => {
+    message.error(error.response?.data?.detail || '批量处理启动失败');
+  },
+});
+
+  // 智能批量处理函数
+  const handleBatchProcess = useCallback(() => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要处理的文档');
+      return;
+    }
+
+    const selectedDocs = documentsData?.documents?.filter(
+      (doc: DocumentRecord) => selectedRowKeys.includes(doc.document_id)
+    ) || [];
+
+    const ingestableDocs = selectedDocs.filter((doc: DocumentRecord) => {
+      const status = getDocumentStatus(doc);
+      return status === DocumentStatus.NOT_INGESTED;
+    });
+
+    const reIndexableDocs = selectedDocs.filter((doc: DocumentRecord) => {
+      const status = getDocumentStatus(doc);
+      return status === DocumentStatus.INGESTED || status === DocumentStatus.OUTDATED;
+    });
+
+    if (ingestableDocs.length === 0 && reIndexableDocs.length === 0) {
+      message.warning('选中的文档中没有可以处理的文档');
+      return;
+    }
+
+    // 如果有需要重索引的文档，询问用户
+    if (reIndexableDocs.length > 0) {
+      Modal.confirm({
+        title: '处理确认',
+        content: `将处理 ${selectedRowKeys.length} 个文档，其中 ${ingestableDocs.length} 个新摄取，${reIndexableDocs.length} 个重索引。是否继续？`,
+        onOk: () => {
+          // 分别处理新摄取和重索引
+          if (ingestableDocs.length > 0) {
+            batchProcessMutation.mutate({
+              documentIds: ingestableDocs.map(doc => doc.document_id),
+              forceReindex: false
+            });
+          }
+          if (reIndexableDocs.length > 0) {
+            batchProcessMutation.mutate({
+              documentIds: reIndexableDocs.map(doc => doc.document_id),
+              forceReindex: true
+            });
+          }
+        }
       });
-      setSelectedRowKeys([]);
-    },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || '批量摄取启动失败');
-    },
-  });
+    } else {
+      // 只有新摄取的文档
+      batchProcessMutation.mutate({
+        documentIds: ingestableDocs.map(doc => doc.document_id),
+        forceReindex: false
+      });
+    }
+  }, [selectedRowKeys, documentsData, getDocumentStatus, batchProcessMutation]);
+
+    // 批量删除处理
+    const handleBatchDelete = useCallback(() => {
+      if (selectedRowKeys.length === 0) {
+        message.warning('请选择要删除的文档');
+        return;
+      }
+
+      Modal.confirm({
+        title: '确认批量删除',
+        content: `确定要删除选中的 ${selectedRowKeys.length} 个文档吗？此操作不可撤销。`,
+        okText: '确定删除',
+        okType: 'danger',
+        cancelText: '取消',
+        onOk: () => {
+          batchDeleteMutation.mutate(selectedRowKeys);
+        },
+      });
+    }, [selectedRowKeys, batchDeleteMutation]);
+
+
+
 
   // 轮询任务状态
   const pollJobStatus = useCallback((jobId: string, documentId: string) => {
@@ -264,36 +373,7 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [selectedRowKeys, documentsData, kbId]);
 
-  // 批量摄取处理
-  const handleBatchIngest = useCallback(() => {
-    if (selectedRowKeys.length === 0) {
-      message.warning('请选择要摄取的文档');
-      return;
-    }
 
-    const selectedDocs = documentsData?.documents?.filter(
-      (doc: DocumentRecord) => selectedRowKeys.includes(doc.document_id)
-    ) || [];
-
-    const ingestableDocIds = selectedDocs
-      .filter((doc: DocumentRecord) => {
-        const status = getDocumentStatus(doc);
-        return status === DocumentStatus.NOT_INGESTED;
-      })
-      .map((doc: DocumentRecord) => doc.document_id);
-
-    if (ingestableDocIds.length === 0) {
-      message.warning('选中的文档中没有可以摄取的文档');
-      return;
-    }
-
-    if (ingestableDocIds.length < selectedRowKeys.length) {
-      const skippedCount = selectedRowKeys.length - ingestableDocIds.length;
-      message.info(`将摄取 ${ingestableDocIds.length} 个文档，跳过 ${skippedCount} 个已摄取或正在处理的文档`);
-    }
-
-    batchIngestMutation.mutate(ingestableDocIds);
-  }, [selectedRowKeys, documentsData, getDocumentStatus, batchIngestMutation]);
 
   // 单个文档下载
   const handleDownload = useCallback(async (documentId: string, filename: string) => {
@@ -524,7 +604,7 @@ export const KBDocumentManagePage: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-4 flex justify-between items-center">
+            <div className="mb-4 flex justify-between items-center">
         <h3 className="text-lg font-medium">文档管理</h3>
         <Space>
           <Button
@@ -537,11 +617,20 @@ export const KBDocumentManagePage: React.FC = () => {
           <Button
             type="primary"
             icon={<PlayCircleOutlined />}
-            onClick={handleBatchIngest}
-            disabled={selectedRowKeys.length === 0 || batchIngestMutation.isPending}
-            loading={batchIngestMutation.isPending}
+            onClick={handleBatchProcess}
+            disabled={selectedRowKeys.length === 0 || batchProcessMutation.isPending}
+            loading={batchProcessMutation.isPending}
           >
-            批量摄取 ({selectedRowKeys.length})
+            批量处理 ({selectedRowKeys.length})
+          </Button>
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            onClick={handleBatchDelete}
+            disabled={selectedRowKeys.length === 0 || batchDeleteMutation.isPending}
+            loading={batchDeleteMutation.isPending}
+          >
+            批量删除 ({selectedRowKeys.length})
           </Button>
           <Button
             type="primary"

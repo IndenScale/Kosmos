@@ -81,8 +81,10 @@ export class DocumentService {
    * 删除文档
    */
   async deleteDocument(kbId: string, documentId: string): Promise<DocumentDeleteResponse> {
-    const response = await apiClient.delete(`${this.baseUrl}/${kbId}/documents/${documentId}`);
-    return response.data;
+    const response = await apiClient.delete(`${this.baseUrl}/${kbId}/documents/${documentId}`, {
+      timeout: 30000 // 增加到30秒
+    });
+    return response.data || { success: true };
   }
 
   /**
@@ -90,7 +92,16 @@ export class DocumentService {
    */
   async deleteDocuments(kbId: string, documentIds: string[]): Promise<DocumentDeleteResponse[]> {
     const deletePromises = documentIds.map(id => this.deleteDocument(kbId, id));
-    return Promise.all(deletePromises);
+    try {
+      return await Promise.all(deletePromises);
+    } catch (error) {
+      console.warn('批量删除过程中出现错误，部分操作可能已成功:', error);
+      // 即使有错误，也返回部分成功的结果
+      const results = await Promise.allSettled(deletePromises);
+      return results.map(result =>
+        result.status === 'fulfilled' ? result.value : { success: false ,message: '批量删除中出现失败'}
+      );
+    }
   }
 
   /**

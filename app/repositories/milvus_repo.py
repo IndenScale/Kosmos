@@ -158,14 +158,14 @@ class MilvusRepository:
         """根据chunk_id删除向量"""
         try:
             collection = self.get_collection(kb_id)
-            
+
             # 构建删除表达式
             delete_expr = f'chunk_id == "{chunk_id}"'
-            
+
             # 执行删除
             collection.delete(delete_expr)
             collection.flush()
-            
+
             return True
         except Exception as e:
             print(f"删除chunk {chunk_id} 失败: {e}")
@@ -175,15 +175,31 @@ class MilvusRepository:
         """根据document_id删除所有相关向量"""
         try:
             collection = self.get_collection(kb_id)
-            
+
             # 构建删除表达式 - 删除所有属于该document的chunks
             delete_expr = f'document_id == "{document_id}"'
-            
+
             # 执行删除
             collection.delete(delete_expr)
             collection.flush()
-            
+
             return True
         except Exception as e:
             print(f"删除document {document_id} 的向量失败: {e}")
             return False
+
+    def delete_document_chunks(self, kb_id: str, document_id: str):
+        """删除指定文档的所有chunks"""
+        try:
+            collection_name = self._normalize_collection_name(kb_id)
+            if not self._collection_exists(kb_id):
+                return  # 如果collection不存在，直接返回
+
+            collection = Collection(collection_name)
+
+            # 删除指定document_id的所有记录
+            expr = f'document_id == "{document_id}"'
+            collection.delete(expr)
+
+        except Exception as e:
+            raise Exception(f"从Milvus删除文档chunks失败: {str(e)}")

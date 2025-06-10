@@ -12,20 +12,21 @@ export class IngestionService {
   private readonly baseUrl = '/api/v1';
 
   /**
-   * 启动单个文档摄取任务
+   * 启动文档摄取/重摄入任务（合并索引和重索引功能）
    */
-  async startIngestion(kbId: string, documentId: string): Promise<IngestionStartResponse> {
+  async processDocument(kbId: string, documentId: string, forceReingest: boolean = false): Promise<IngestionStartResponse> {
+    const endpoint = forceReingest ? 'reingest' : 'ingest';
     const response = await apiClient.post(
-      `${this.baseUrl}/kbs/${kbId}/documents/${documentId}/ingest`
+      `${this.baseUrl}/kbs/${kbId}/documents/${documentId}/${endpoint}`
     );
     return response.data;
   }
 
   /**
-   * 批量启动摄取任务
+   * 批量处理文档（智能选择摄取或重摄入）
    */
-  async startBatchIngestion(kbId: string, documentIds: string[]): Promise<BatchIngestionResponse> {
-    const promises = documentIds.map(id => this.startIngestion(kbId, id));
+  async processBatchDocuments(kbId: string, documentIds: string[], forceReingest: boolean = false): Promise<BatchIngestionResponse> {
+    const promises = documentIds.map(id => this.processDocument(kbId, id, forceReingest));
     const results = await Promise.allSettled(promises);
 
     const jobs: IngestionStartResponse[] = [];
@@ -56,54 +57,11 @@ export class IngestionService {
     return response.data;
   }
 
-  /**
-   * 获取知识库的所有任务
-   */
   async getKBJobs(kbId: string): Promise<IngestionJob[]> {
     const response = await apiClient.get(`${this.baseUrl}/kbs/${kbId}/jobs`);
     return response.data;
   }
 
-  /**
-   * 重新摄取文档（删除原有索引并重新摄取）
-   */
-  async reIngestDocument(kbId: string, documentId: string): Promise<IngestionStartResponse> {
-    const response = await apiClient.post(
-      `${this.baseUrl}/kbs/${kbId}/documents/${documentId}/reindex`
-    );
-    return response.data;
-  }
-
-  /**
-   * 批量重新摄取文档
-   */
-  async reIngestDocuments(kbId: string, documentIds: string[]): Promise<BatchIngestionResponse> {
-    const promises = documentIds.map(id => this.reIngestDocument(kbId, id));
-    const results = await Promise.allSettled(promises);
-
-    const jobs: IngestionStartResponse[] = [];
-    let successCount = 0;
-    let failedCount = 0;
-
-    results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        jobs.push(result.value);
-        successCount++;
-      } else {
-        failedCount++;
-      }
-    });
-
-    return {
-      jobs,
-      success_count: successCount,
-      failed_count: failedCount
-    };
-  }
-
-  /**
-   * 取消摄取任务
-   */
   async cancelJob(jobId: string): Promise<void> {
     await apiClient.post(`${this.baseUrl}/jobs/${jobId}/cancel`);
   }

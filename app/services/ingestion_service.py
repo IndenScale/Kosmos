@@ -270,3 +270,21 @@ class IngestionService:
         db.commit()
 
         return collection_name
+
+    async def delete_document_index(self, kb_id: str, document_id: str):
+        """删除文档的索引数据（从Milvus和SQLite中删除）"""
+        try:
+            # 1. 从Milvus中删除文档的所有chunks
+            self.milvus_repo.delete_document_chunks(kb_id, document_id)
+            
+            # 2. 从SQLite中删除文档的所有chunks
+            self.db.query(Chunk).filter(
+                Chunk.kb_id == kb_id,
+                Chunk.document_id == document_id
+            ).delete()
+            
+            self.db.commit()
+            
+        except Exception as e:
+            self.db.rollback()
+            raise Exception(f"删除文档索引失败: {str(e)}")

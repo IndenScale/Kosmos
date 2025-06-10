@@ -24,9 +24,29 @@ apiClient.interceptors.request.use((config) => {
 
 // 响应拦截器 - 处理错误
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // 处理204状态码 - 删除成功但无内容返回
+    if (response.status === 204) {
+      return { ...response, data: { success: true } };
+    }
+    return response;
+  },
   (error) => {
     console.error('API请求错误:', error);
+    
+    // 处理超时错误
+    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+      console.warn('请求超时，但操作可能已成功完成');
+      // 对于删除操作，超时不一定意味着失败
+      if (error.config?.method === 'delete') {
+        return Promise.resolve({ 
+          data: { success: true, message: '删除请求已发送，请稍后刷新页面确认结果' },
+          status: 204,
+          statusText: 'No Content'
+        });
+      }
+    }
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token');
       window.location.href = '/login';
