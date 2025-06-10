@@ -5,6 +5,7 @@ import { API_BASE_URL } from './config';
 // 创建axios实例
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true, // 添加跨域凭证支持
 });
 
 // 请求拦截器
@@ -15,6 +16,19 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// 响应拦截器
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('摄取服务请求错误:', error);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const ingestionService = {
   // 启动摄取任务

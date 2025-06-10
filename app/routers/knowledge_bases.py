@@ -226,23 +226,23 @@ def get_knowledge_base_stats(
     """获取知识库统计信息"""
     kb_service = KBService(db)
     kb = kb_service.get_kb_by_id(kb_id)
-    
+
     if not kb:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Knowledge base not found"
         )
-    
+
     # 获取文档和chunk统计
     from app.repositories.document_repo import DocumentRepository
     from app.repositories.chunk_repo import ChunkRepository
-    
+
     doc_repo = DocumentRepository(db)
     chunk_repo = ChunkRepository(db)
-    
-    document_count = len(doc_repo.get_documents_by_kb(kb_id))
+
+    document_count = len(doc_repo.get_documents_by_id(kb_id))
     chunk_count = len(chunk_repo.get_chunks_by_kb(kb_id))
-    
+
     # 获取顶级标签
     top_level_tags = []
     if kb.tag_dictionary:
@@ -254,7 +254,7 @@ def get_knowledge_base_stats(
                 top_level_tags = list(tag_dict.keys())[:10]
             except (json.JSONDecodeError, TypeError):
                 top_level_tags = []
-    
+
     return {
         "document_count": document_count,
         "chunk_count": chunk_count,

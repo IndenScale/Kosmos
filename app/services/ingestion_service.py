@@ -104,31 +104,41 @@ class IngestionService:
             milvus_data = []
 
             for i, chunk_text in enumerate(chunk_texts):
-                # 生成标签
-                tags = self.ai_utils.get_tags(chunk_text, tag_directory)
+                try:
+                    # 生成标签
+                    tags = self.ai_utils.get_tags(chunk_text, tag_directory)
+                    
+                    # 确保tags是列表
+                    if not isinstance(tags, list):
+                        print(f"警告: 标签生成返回非列表类型: {type(tags)}, 使用空列表")
+                        tags = []
+                    
+                    # 生成嵌入向量
+                    embedding = self.ai_utils.get_embedding(chunk_text)
+                    
+                    # 创建chunk对象
+                    chunk_id = str(uuid.uuid4())
+                    chunk = Chunk(
+                        id=chunk_id,
+                        kb_id=kb_id,
+                        document_id=document_id,
+                        chunk_index=i,
+                        content=chunk_text,
+                        tags=json.dumps(tags, ensure_ascii=False)
+                    )
+                    chunks.append(chunk)
 
-                # 生成嵌入向量
-                embedding = self.ai_utils.get_embedding(chunk_text)
-
-                # 创建chunk对象
-                chunk_id = str(uuid.uuid4())
-                chunk = Chunk(
-                    id=chunk_id,
-                    kb_id=kb_id,
-                    document_id=document_id,
-                    chunk_index=i,
-                    content=chunk_text,
-                    tags=json.dumps(tags, ensure_ascii=False)
-                )
-                chunks.append(chunk)
-
-                # 准备Milvus数据
-                milvus_data.append({
-                    "chunk_id": chunk_id,
-                    "document_id": document_id,
-                    "tags": tags,
-                    "embedding": embedding
-                })
+                    # 准备Milvus数据
+                    milvus_data.append({
+                        "chunk_id": chunk_id,
+                        "document_id": document_id,
+                        "tags": tags,
+                        "embedding": embedding
+                    })
+                    
+                except Exception as e:
+                    print(f"处理chunk {i} 时发生错误: {str(e)}, 跳过此chunk")
+                    continue
 
             # 9. 保存到SQLite
             self.db.add_all(chunks)

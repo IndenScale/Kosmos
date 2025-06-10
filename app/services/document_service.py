@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile
 from typing import List, Optional
 import os
@@ -109,8 +109,6 @@ class DocumentService:
 
     def get_kb_documents_with_chunk_count(self, kb_id: str) -> List[dict]:
         """获取知识库中的所有文档及其chunks数量"""
-        from sqlalchemy.orm import joinedload
-    
         # 使用JOIN一次性获取文档、物理文件和用户信息
         kb_documents = self.db.query(KBDocument).filter(
             KBDocument.kb_id == kb_id
@@ -129,7 +127,7 @@ class DocumentService:
                 "kb_id": kb_doc.kb_id,
                 "document_id": kb_doc.document_id,
                 "upload_at": kb_doc.upload_at,
-                "last_ingest_time": kb_doc.last_ingest_time,  # 添加这个字段
+                "last_ingest_time": kb_doc.last_ingest_time,
                 "document": {
                     "id": kb_doc.document.id,
                     "filename": kb_doc.document.filename,
@@ -147,20 +145,32 @@ class DocumentService:
 
     def get_kb_document(self, kb_id: str, document_id: str) -> Optional[KBDocument]:
         """获取知识库中的特定文档"""
-        return self.doc_repo.get_kb_document(kb_id, document_id)
+        return self.db.query(KBDocument).filter(
+            and_(KBDocument.kb_id == kb_id, KBDocument.document_id == document_id)
+        ).options(
+            joinedload(KBDocument.document).joinedload(Document.physical_file),
+            joinedload(KBDocument.document).joinedload(Document.uploader)
+        ).first()
 
     def get_document_file_path(self, document_id: str) -> Optional[str]:
         """获取文档的文件路径"""
-        document = self.doc_repo.get_document_by_id(document_id)
-        if document and os.path.exists(document.file_path):
-            return document.file_path
+        # 使用joinedload预加载physical_file关系
+        document = self.db.query(Document).options(
+            joinedload(Document.physical_file)
+        ).filter(Document.id == document_id).first()
+        
+        if document and document.physical_file and os.path.exists(document.physical_file.file_path):
+            return document.physical_file.file_path
         return None
 
     def remove_document_from_kb(self, kb_id: str, document_id: str) -> bool:
         """从知识库中移除文档"""
         try:
-            # 获取文档记录
-            document = self.db.query(Document).filter(Document.id == document_id).first()
+            # 获取文档记录（预加载物理文件信息）
+            document = self.db.query(Document).options(
+                joinedload(Document.physical_file)
+            ).filter(Document.id == document_id).first()
+            
             if not document:
                 return False
 
@@ -192,9 +202,7 @@ class DocumentService:
                     self.db.delete(document)
                     
                     # 减少物理文件引用计数
-                    physical_file = self.db.query(PhysicalFile).filter(
-                        PhysicalFile.content_hash == content_hash
-                    ).first()
+                    physical_file = document.physical_file
                     
                     if physical_file:
                         physical_file.reference_count -= 1

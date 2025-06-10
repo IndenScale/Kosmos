@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,8 +10,6 @@ import app.models.user
 import app.models.knowledge_base
 import app.models.document
 import app.models.chunk
-
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,13 +26,25 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 从环境变量获取前端URL
+WEBUI_URL = os.getenv("WEBUI_URL", "http://localhost:3000")
+
+# 配置允许的源
+allowed_origins = [
+    WEBUI_URL,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://10.19.8.199:3000",  # 如果前端部署在这个IP
+]
+
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该限制具体的域名
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # 包含路由
@@ -41,7 +52,8 @@ app.include_router(auth.router)
 app.include_router(knowledge_bases.router)
 app.include_router(documents.router)
 app.include_router(ingestion.router)
-app.include_router(search.router)  # 添加搜索路由
+app.include_router(search.router)
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Kosmos API"}

@@ -26,8 +26,22 @@ class AIUtils:
             return response.data[0].embedding
         except Exception as e:
             raise Exception(f"获取嵌入向量失败: {str(e)}")
+    def _clean_json_response(self, response: str) -> str:
+        """清理AI响应中的markdown代码块标记和其他格式"""
+        # 移除markdown代码块标记
+        response = response.replace('```json', '').replace('```', '')
 
-    def get_tags(self, content: str, tag_directory: Dict[str, Any]) -> List[str]:
+        # 移除可能的前后空白字符和换行符
+        response = response.strip()
+
+        # 如果响应包含多行，尝试找到JSON部分
+        lines = response.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                return line
+
+    def get_tags(self, content: str, tag_directory: Dict[str, Any], mag_tags:int = 40) -> List[str]:
         """根据内容和标签字典生成标签"""
         try:
             prompt = f"""
@@ -57,12 +71,20 @@ class AIUtils:
             )
 
             result = response.choices[0].message.content.strip()
+
+            result = self._clean_json_response(result)
             # 提取第一个和最后一个{}之间的内容
             try:
                 first_brace = result.index('[')
                 last_brace = result.rindex(']')
                 json_str = result[first_brace:last_brace+1]
                 tags = json.loads(json_str)
+
+                # 新增：限制标签数量不超过20个
+                if len(tags) > mag_tags:
+                    tags = tags[:mag_tags]
+                    print(f"警告：标签数量超过20个，已自动截断")
+
             except (ValueError, json.JSONDecodeError) as e:
                 print(f"JSON解析失败: {str(e)}, 原始内容: {result}")
                 return []

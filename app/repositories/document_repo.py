@@ -155,6 +155,9 @@ class DocumentRepository:
         """获取知识库中的特定文档"""
         return self.db.query(KBDocument).filter(
             and_(KBDocument.kb_id == kb_id, KBDocument.document_id == document_id)
+        ).options(
+            joinedload(KBDocument.document).joinedload(Document.physical_file),
+            joinedload(KBDocument.document).joinedload(Document.uploader)
         ).first()
 
     def remove_document_from_kb(self, kb_id: str, document_id: str) -> bool:
