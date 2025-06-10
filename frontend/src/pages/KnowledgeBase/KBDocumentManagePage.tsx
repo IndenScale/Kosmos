@@ -214,8 +214,9 @@ export const KBDocumentManagePage: React.FC = () => {
   const ingestMutation = useMutation({
     mutationFn: ({ documentId, forceReingest }: { documentId: string, forceReingest?: boolean }) =>
       ingestionService.processDocument(kbId!, documentId, forceReingest),
-    onSuccess: (data, { documentId }) => {
-      const action = data.message.includes('重') ? '重摄取' : '摄取';
+    onSuccess: (data, { documentId, forceReingest }) => {
+      // 根据请求参数判断操作类型，而不是依赖响应消息
+      const action = forceReingest ? '重摄取' : '摄取';
       message.success(`${action}任务已启动`);
       // 立即刷新任务状态
       queryClient.invalidateQueries({ queryKey: ['documentJobStatuses', kbId] });

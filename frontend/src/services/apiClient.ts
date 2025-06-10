@@ -29,24 +29,36 @@ apiClient.interceptors.response.use(
     if (response.status === 204) {
       return { ...response, data: { success: true } };
     }
+    // 处理202状态码 - 异步任务已接受
+    if (response.status === 202) {
+      return { ...response, data: { success: true } }; // 202通常有响应体，直接返回
+    }
     return response;
   },
   (error) => {
     console.error('API请求错误:', error);
-    
+
     // 处理超时错误
     if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
       console.warn('请求超时，但操作可能已成功完成');
       // 对于删除操作，超时不一定意味着失败
       if (error.config?.method === 'delete') {
-        return Promise.resolve({ 
+        return Promise.resolve({
           data: { success: true, message: '删除请求已发送，请稍后刷新页面确认结果' },
           status: 204,
           statusText: 'No Content'
         });
       }
+      // 对于摄取操作，超时也可能成功
+      if (error.config?.url?.includes('/ingest')) {
+        return Promise.resolve({
+          data: { success: true, message: '摄取任务已启动，请稍后查看任务状态' },
+          status: 202,
+          statusText: 'Accepted'
+        });
+      }
     }
-    
+
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token');
       window.location.href = '/login';

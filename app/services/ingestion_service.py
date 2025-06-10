@@ -51,13 +51,13 @@ class IngestionService:
                 job_id, kb_id, document_id,
                 timeout=30  # 30秒超时
             )
-            
+
             # 更新job记录，关联task_id
             job.task_id = task_id
             self.db.commit()
-            
+
             return job_id
-            
+
         except Exception as e:
             # 如果添加任务失败，更新任务状态
             job.status = "failed"
@@ -74,17 +74,17 @@ class IngestionService:
             job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
             if not job:
                 raise Exception(f"任务不存在: {job_id}")
-            
+
             job.status = "processing"
             db.commit()
-            
+
             # 执行摄取流水线
             self._execute_pipeline(db, job_id, kb_id, document_id)
-            
+
             # 更新任务状态为完成
             job.status = "completed"
             db.commit()
-            
+
         except Exception as e:
             # 更新任务状态为失败
             job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
@@ -144,15 +144,15 @@ class IngestionService:
             try:
                 # 生成标签
                 tags = self.ai_utils.get_tags(chunk_text, tag_directory)
-                
+
                 # 确保tags是列表
                 if not isinstance(tags, list):
                     print(f"警告: 标签生成返回非列表类型: {type(tags)}, 使用空列表")
                     tags = []
-                
+
                 # 生成嵌入向量
                 embedding = self.ai_utils.get_embedding(chunk_text)
-                
+
                 # 创建chunk对象
                 chunk_id = str(uuid.uuid4())
                 chunk = Chunk(
@@ -172,7 +172,7 @@ class IngestionService:
                     "tags": tags,
                     "embedding": embedding
                 })
-                
+
             except Exception as e:
                 print(f"处理chunk {i} 时发生错误: {str(e)}, 跳过此chunk")
                 continue
@@ -220,7 +220,7 @@ class IngestionService:
         job = self.db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
         if not job:
             return None
-        
+
         # 如果任务有task_id，检查队列中的状态
         if hasattr(job, 'task_id') and job.task_id:
             queue_task = task_queue.get_task_status(job.task_id)
@@ -237,7 +237,7 @@ class IngestionService:
                     if queue_task.error:
                         job.error_message = queue_task.error
                     self.db.commit()
-        
+
         return job
 
     def get_kb_jobs(self, kb_id: str) -> List[IngestionJob]:
@@ -276,15 +276,15 @@ class IngestionService:
         try:
             # 1. 从Milvus中删除文档的所有chunks
             self.milvus_repo.delete_document_chunks(kb_id, document_id)
-            
+
             # 2. 从SQLite中删除文档的所有chunks
             self.db.query(Chunk).filter(
                 Chunk.kb_id == kb_id,
                 Chunk.document_id == document_id
             ).delete()
-            
+
             self.db.commit()
-            
+
         except Exception as e:
             self.db.rollback()
             raise Exception(f"删除文档索引失败: {str(e)}")
