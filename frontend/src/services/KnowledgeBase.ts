@@ -35,7 +35,7 @@ export const KnowledgeBaseService = {
   async getKBStats(kbId: string): Promise<{
     document_count: number;
     chunk_count: number;
-    top_level_tags: string[];
+    tag_dictionary: TagDictionary;
   }> {
     const response = await apiClient.get(`/api/v1/kbs/${kbId}/stats`);
     return response.data;

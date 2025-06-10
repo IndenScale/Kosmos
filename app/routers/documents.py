@@ -1,17 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List
+
 import os
 from app.db.database import get_db
 from app.models.user import User
 from app.models.document import Document
-from app.schemas.document import DocumentResponse, KBDocumentResponse, DocumentListResponse
+from app.schemas.document import DocumentResponse, KBDocumentResponse, DocumentListResponse, BatchDeleteRequest, BatchDeleteResponse
 from app.services.document_service import DocumentService
 from app.dependencies.auth import get_current_user
 from app.dependencies.kb_auth import get_kb_admin_or_owner, get_kb_member
 
 router = APIRouter(prefix="/api/v1/kbs", tags=["documents"])
+
 
 @router.post("/{kb_id}/documents", response_model=DocumentResponse)
 def upload_document(
@@ -179,3 +180,36 @@ def remove_document(
     success = doc_service.remove_document_from_kb(kb_id, document_id)
     if not success:
         raise HTTPException(status_code=404, detail="文档不存在")
+
+@router.delete("/{kb_id}/documents/batch", response_model=BatchDeleteResponse)
+def batch_remove_documents(
+    kb_id: str,
+    request: BatchDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    kb_member = Depends(get_kb_admin_or_owner),
+    db: Session = Depends(get_db)
+):
+    """批量从知识库中移除文档"""
+    if not request.document_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="文档ID列表不能为空"
+        )
+
+    if len(request.document_ids) > 100:  # 限制批量操作数量
+        raise HTTPException(
+            status_code=400,
+            detail="单次批量删除文档数量不能超过100个"
+        )
+
+    doc_service = DocumentService(db)
+    results = doc_service.remove_documents_from_kb(kb_id, request.document_ids)
+
+    success_count = sum(1 for success in results.values() if success)
+    failed_count = len(results) - success_count
+
+    return BatchDeleteResponse(
+        results=results,
+        success_count=success_count,
+        failed_count=failed_count
+    )

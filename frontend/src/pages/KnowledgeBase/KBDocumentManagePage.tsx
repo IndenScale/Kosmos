@@ -1,17 +1,5 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Table, Button, Upload, Modal, message, Space, Tag, Popconfirm, Checkbox, Alert, Progress } from 'antd';
-import {
-  UploadOutlined,
-  DownloadOutlined,
-  DeleteOutlined,
-  EyeOutlined,
-  PlayCircleOutlined,
-  LoadingOutlined,
-  ExclamationCircleOutlined,
-  ClockCircleOutlined,
-  ReloadOutlined,
-  StopOutlined
-} from '@ant-design/icons';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { message, Modal } from 'antd';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadProps } from 'antd';
@@ -30,6 +18,15 @@ import { KBDetail } from '../../types/knowledgeBase';
 import { documentService } from '../../services/documentService';
 import { ingestionService } from '../../services/ingestionService';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
+
+// 导入组件
+import { DocumentToolbar } from '../../components/DocumentManage/DocumentToolbar';
+import { OutdatedDocumentsAlert } from '../../components/DocumentManage/OutdatedDocumentsAlert';
+import { DocumentTable } from '../../components/DocumentManage/DocumentTable';
+import { UploadModal } from '../../components/DocumentManage/UploadModal';
+
+// 导入工具函数
+import { getDocumentStatus, isDocumentOutdated } from '../../utils/documentUtils';
 
 export const KBDocumentManagePage: React.FC = () => {
   const { kbId } = useParams<{ kbId: string }>();
@@ -59,7 +56,7 @@ export const KBDocumentManagePage: React.FC = () => {
     queryKey: ['documentJobStatuses', kbId],
     queryFn: () => ingestionService.getDocumentJobStatuses(kbId!),
     enabled: !!kbId,
-    refetchInterval: 2000, // 每2秒刷新一次任务状态
+    refetchInterval: 2000,
     refetchIntervalInBackground: true,
   });
 
@@ -80,7 +77,7 @@ export const KBDocumentManagePage: React.FC = () => {
       return [];
     }
     return documentsData.documents.filter((doc: DocumentRecord) =>
-      documentService.isDocumentOutdated(doc, kbDetail.last_tag_directory_update_time)
+      isDocumentOutdated(doc, kbDetail.last_tag_directory_update_time)
     );
   }, [documentsData, kbDetail]);
 
@@ -105,93 +102,7 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [selectedRowKeys, documentsData]);
 
-  // 获取文档状态（基于任务队列状态）
-  const getDocumentStatus = useCallback((document: DocumentRecord): DocumentStatus => {
-    const jobStatus = documentJobStatuses.get(document.document_id);
-
-    // 如果有正在进行的任务，优先显示任务状态
-    if (jobStatus) {
-      switch (jobStatus.status) {
-        case IngestionJobStatus.PENDING:
-        case IngestionJobStatus.RUNNING:
-          return DocumentStatus.INGESTING;
-        case IngestionJobStatus.FAILED:
-          return DocumentStatus.NOT_INGESTED; // 失败后回到未摄取状态
-        case IngestionJobStatus.COMPLETED:
-          // 任务完成，需要刷新文档数据
-          queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-          break;
-      }
-    }
-
-    // 基于文档本身的状态判断
-    const isIngested = document.chunk_count && document.chunk_count > 0;
-    const isOutdated = documentService.isDocumentOutdated(
-      document,
-      kbDetail?.last_tag_directory_update_time
-    );
-
-    if (isIngested && isOutdated) return DocumentStatus.OUTDATED;
-    if (isIngested) return DocumentStatus.INGESTED;
-    return DocumentStatus.NOT_INGESTED;
-  }, [documentJobStatuses, kbDetail, queryClient, kbId]);
-
-  // 获取任务进度
-  const getJobProgress = useCallback((documentId: string): number | undefined => {
-    const jobStatus = documentJobStatuses.get(documentId);
-    return jobStatus?.progress;
-  }, [documentJobStatuses]);
-
-  // 处理选择状态切换
-  const handleSelectionChange = useCallback(() => {
-    if (!documentsData?.documents) return;
-
-    const allDocumentIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
-    const currentPageIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
-
-    switch (selectionState) {
-      case SelectionState.NONE:
-        setSelectedRowKeys(currentPageIds);
-        break;
-      case SelectionState.PARTIAL:
-        setSelectedRowKeys([
-          ...selectedRowKeys,
-          ...currentPageIds.filter((id: string) => !selectedRowKeys.includes(id))
-        ]);
-        break;
-      case SelectionState.PAGE:
-        setSelectedRowKeys(allDocumentIds);
-        break;
-      case SelectionState.ALL:
-        setSelectedRowKeys([]);
-        break;
-    }
-  }, [selectionState, selectedRowKeys, documentsData]);
-
-  // 获取选择框显示文本
-  const getSelectionText = useCallback(() => {
-    switch (selectionState) {
-      case SelectionState.NONE: return '选择';
-      case SelectionState.PARTIAL: return '部分';
-      case SelectionState.PAGE: return '本页';
-      case SelectionState.ALL: return '全部';
-    }
-  }, [selectionState]);
-
-  // 文档上传
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => documentService.uploadDocument(kbId!, file),
-    onSuccess: () => {
-      message.success('文档上传成功');
-      setUploadModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-    },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || '上传失败');
-    },
-  });
-
-  // 文档删除
+  // Mutations
   const deleteMutation = useMutation({
     mutationFn: (documentId: string) => documentService.deleteDocument(kbId!, documentId),
     onSuccess: () => {
@@ -210,15 +121,12 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   });
 
-  // 文档摄取
   const ingestMutation = useMutation({
     mutationFn: ({ documentId, forceReingest }: { documentId: string, forceReingest?: boolean }) =>
       ingestionService.processDocument(kbId!, documentId, forceReingest),
-    onSuccess: (data, { documentId, forceReingest }) => {
-      // 根据请求参数判断操作类型，而不是依赖响应消息
+    onSuccess: (data, { forceReingest }) => {
       const action = forceReingest ? '重摄取' : '摄取';
       message.success(`${action}任务已启动`);
-      // 立即刷新任务状态
       queryClient.invalidateQueries({ queryKey: ['documentJobStatuses', kbId] });
     },
     onError: (error: any) => {
@@ -226,10 +134,9 @@ export const KBDocumentManagePage: React.FC = () => {
     },
   });
 
-  // 批量删除
   const batchDeleteMutation = useMutation({
     mutationFn: (documentIds: string[]) => documentService.deleteDocuments(kbId!, documentIds),
-    onSuccess: (results, documentIds) => {
+    onSuccess: (results) => {
       const successCount = results.filter(result => result.success).length;
       const failedCount = results.length - successCount;
 
@@ -248,7 +155,6 @@ export const KBDocumentManagePage: React.FC = () => {
     },
   });
 
-  // 合并的批量处理mutation
   const batchProcessMutation = useMutation({
     mutationFn: ({ documentIds, forceReindex }: { documentIds: string[], forceReindex: boolean }) =>
       ingestionService.processBatchDocuments(kbId!, documentIds, forceReindex),
@@ -259,7 +165,6 @@ export const KBDocumentManagePage: React.FC = () => {
         message.warning(`${results.failed_count} 个文档${action}启动失败`);
       }
       setSelectedRowKeys([]);
-      // 立即刷新任务状态
       queryClient.invalidateQueries({ queryKey: ['documentJobStatuses', kbId] });
     },
     onError: (error: any) => {
@@ -267,7 +172,22 @@ export const KBDocumentManagePage: React.FC = () => {
     },
   });
 
-  // 智能批量处理函数
+  // 事件处理函数
+  const handleSelectionChange = useCallback((newSelectedRowKeys: string[]) => {
+    setSelectedRowKeys(newSelectedRowKeys);
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (documentsData?.documents) {
+      const allIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
+      setSelectedRowKeys(allIds);
+    }
+  }, [documentsData]);
+
+  const handleSelectNone = useCallback(() => {
+    setSelectedRowKeys([]);
+  }, []);
+
   const handleBatchProcess = useCallback(() => {
     if (selectedRowKeys.length === 0) {
       message.warning('请选择要处理的文档');
@@ -279,12 +199,12 @@ export const KBDocumentManagePage: React.FC = () => {
     ) || [];
 
     const ingestableDocs = selectedDocs.filter((doc: DocumentRecord) => {
-      const status = getDocumentStatus(doc);
+      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time);
       return status === DocumentStatus.NOT_INGESTED;
     });
 
     const reIndexableDocs = selectedDocs.filter((doc: DocumentRecord) => {
-      const status = getDocumentStatus(doc);
+      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time);
       return status === DocumentStatus.INGESTED || status === DocumentStatus.OUTDATED;
     });
 
@@ -293,13 +213,11 @@ export const KBDocumentManagePage: React.FC = () => {
       return;
     }
 
-    // 如果有需要重索引的文档，询问用户
     if (reIndexableDocs.length > 0) {
       Modal.confirm({
         title: '处理确认',
         content: `将处理 ${selectedRowKeys.length} 个文档，其中 ${ingestableDocs.length} 个新摄取，${reIndexableDocs.length} 个重摄取。是否继续？`,
         onOk: () => {
-          // 分别处理新摄取和重摄取
           if (ingestableDocs.length > 0) {
             batchProcessMutation.mutate({
               documentIds: ingestableDocs.map(doc => doc.document_id),
@@ -315,15 +233,13 @@ export const KBDocumentManagePage: React.FC = () => {
         }
       });
     } else {
-      // 只有新摄取的文档
       batchProcessMutation.mutate({
         documentIds: ingestableDocs.map(doc => doc.document_id),
         forceReindex: false
       });
     }
-  }, [selectedRowKeys, documentsData, getDocumentStatus, batchProcessMutation]);
+  }, [selectedRowKeys, documentsData, documentJobStatuses, kbDetail, batchProcessMutation]);
 
-  // 批量删除处理
   const handleBatchDelete = useCallback(() => {
     if (selectedRowKeys.length === 0) {
       message.warning('请选择要删除的文档');
@@ -342,21 +258,6 @@ export const KBDocumentManagePage: React.FC = () => {
     });
   }, [selectedRowKeys, batchDeleteMutation]);
 
-  // 取消任务
-  const handleCancelJob = useCallback(async (documentId: string) => {
-    const jobStatus = documentJobStatuses.get(documentId);
-    if (jobStatus?.job_id) {
-      try {
-        await ingestionService.cancelJob(jobStatus.job_id);
-        message.success('任务已取消');
-        queryClient.invalidateQueries({ queryKey: ['documentJobStatuses', kbId] });
-      } catch (error: any) {
-        message.error('取消任务失败');
-      }
-    }
-  }, [documentJobStatuses, queryClient, kbId]);
-
-  // 批量下载
   const handleBatchDownload = useCallback(async () => {
     if (selectedRowKeys.length === 0) {
       message.warning('请选择要下载的文档');
@@ -397,7 +298,6 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [selectedRowKeys, documentsData, kbId]);
 
-  // 单个文档下载
   const handleDownload = useCallback(async (documentId: string, filename: string) => {
     try {
       const blob = await documentService.downloadDocument(kbId!, documentId);
@@ -414,336 +314,90 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [kbId]);
 
+  const handleCancelJob = useCallback(async (documentId: string) => {
+    const jobStatus = documentJobStatuses.get(documentId);
+    if (jobStatus?.job_id) {
+      try {
+        await ingestionService.cancelJob(jobStatus.job_id);
+        message.success('任务已取消');
+        queryClient.invalidateQueries({ queryKey: ['documentJobStatuses', kbId] });
+      } catch (error: any) {
+        message.error('取消任务失败');
+      }
+    }
+  }, [documentJobStatuses, queryClient, kbId]);
+
+  const handleBatchReIngest = useCallback((documentIds: string[]) => {
+    setSelectedRowKeys(documentIds);
+    batchProcessMutation.mutate({
+      documentIds,
+      forceReindex: true
+    });
+  }, [batchProcessMutation]);
+
   // 上传配置
   const uploadProps: UploadProps = {
+    name: 'files',
     multiple: true,
-    beforeUpload: (file) => {
-      // 验证文件类型
-      const typeValidation = documentService.validateFileType(file);
-      if (!typeValidation.isValid) {
-        message.error(typeValidation.error);
-        return false;
+    action: `/api/v1/kbs/${kbId}/documents/upload`,
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+    },
+    onChange(info) {
+      const { status } = info.file;
+      if (status === 'done') {
+        message.success(`${info.file.name} 文件上传成功`);
+        queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
+      } else if (status === 'error') {
+        message.error(`${info.file.name} 文件上传失败`);
       }
-
-      // 验证文件大小
-      const sizeValidation = documentService.validateFileSize(file);
-      if (!sizeValidation.isValid) {
-        message.error(sizeValidation.error);
-        return false;
-      }
-
-      uploadMutation.mutate(file);
-      return false;
     },
     showUploadList: false,
   };
 
-  // 表格列定义
-  const columns = [
-    {
-      title: (
-        <Checkbox
-          indeterminate={selectionState === SelectionState.PARTIAL}
-          checked={selectionState !== SelectionState.NONE}
-          onChange={handleSelectionChange}
-        >
-          {getSelectionText()}
-        </Checkbox>
-      ),
-      dataIndex: 'selection',
-      key: 'selection',
-      width: 100,
-      render: (_: any, record: DocumentRecord) => (
-        <Checkbox
-          checked={selectedRowKeys.includes(record.document_id)}
-          onChange={(e) => {
-            if (e.target.checked) {
-              setSelectedRowKeys([...selectedRowKeys, record.document_id]);
-            } else {
-              setSelectedRowKeys(selectedRowKeys.filter(key => key !== record.document_id));
-            }
-          }}
-        />
-      ),
-    },
-    {
-      title: '文件名',
-      dataIndex: ['document', 'filename'],
-      key: 'filename',
-      render: (filename: string, record: DocumentRecord) => {
-        const status = getDocumentStatus(record);
-        return (
-          <div className="flex items-center">
-            <span>{filename}</span>
-            {status === DocumentStatus.OUTDATED && (
-              <Tag icon={<ClockCircleOutlined />} color="orange" className="ml-2">
-                标签过时
-              </Tag>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      title: '文件类型',
-      dataIndex: ['document', 'file_type'],
-      key: 'file_type',
-    },
-    {
-      title: '文件大小',
-      dataIndex: ['document', 'file_size'],
-      key: 'file_size',
-      render: (size: number) => documentService.formatFileSize(size),
-    },
-    {
-      title: '上传者',
-      dataIndex: 'uploader_username',
-      key: 'uploader_username',
-      render: (username: string, record: DocumentRecord) =>
-        username || record.uploaded_by || '未知用户',
-    },
-    {
-      title: '上传时间',
-      dataIndex: 'upload_at',
-      key: 'upload_at',
-      render: (date: string) => new Date(date).toLocaleString(),
-    },
-    {
-      title: '最后摄入时间',
-      dataIndex: 'last_ingest_time',
-      key: 'last_ingest_time',
-      render: (date: string) => date ? new Date(date).toLocaleString() : '未摄入',
-    },
-    {
-      title: '状态',
-      key: 'status',
-      render: (_: any, record: DocumentRecord) => {
-        const status = getDocumentStatus(record);
-        const jobStatus = documentJobStatuses.get(record.document_id);
-        const progress = getJobProgress(record.document_id);
-
-        switch (status) {
-          case DocumentStatus.INGESTING:
-            return (
-              <div>
-                <Tag icon={<LoadingOutlined />} color="processing">
-                  {jobStatus?.status === IngestionJobStatus.PENDING ? '等待中' : '摄取中'}
-                </Tag>
-                {progress !== undefined && (
-                  <Progress
-                    percent={progress}
-                    size="small"
-                    style={{ width: 100, marginTop: 4 }}
-                  />
-                )}
-                {jobStatus?.error_message && (
-                  <div className="text-red-500 text-xs mt-1">
-                    {jobStatus.error_message}
-                  </div>
-                )}
-              </div>
-            );
-          case DocumentStatus.INGESTED:
-            return (
-              <Tag color="success">
-                已摄取 ({record.chunk_count} 块)
-              </Tag>
-            );
-          case DocumentStatus.OUTDATED:
-            return (
-              <Space>
-                <Tag color="success">
-                  已摄取 ({record.chunk_count} 块)
-                </Tag>
-                <Tag icon={<ExclamationCircleOutlined />} color="warning">
-                  需要重新摄取
-                </Tag>
-              </Space>
-            );
-          default:
-            return (
-              <Tag color="default">
-                未摄取
-              </Tag>
-            );
-        }
-      },
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      render: (_: any, record: DocumentRecord) => {
-        const status = getDocumentStatus(record);
-        const jobStatus = documentJobStatuses.get(record.document_id);
-        const isProcessing = status === DocumentStatus.INGESTING;
-        const canIngest = status === DocumentStatus.NOT_INGESTED;
-        const canReIngest = status === DocumentStatus.OUTDATED;
-        const canCancel = isProcessing && jobStatus?.job_id;
-
-        return (
-          <Space>
-            <Button
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => {
-                message.info('预览功能待实现');
-              }}
-            >
-              预览
-            </Button>
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={() => handleDownload(record.document_id, record.document.filename)}
-            >
-              下载
-            </Button>
-            {canIngest && (
-              <Button
-                size="small"
-                icon={<PlayCircleOutlined />}
-                onClick={() => ingestMutation.mutate({ documentId: record.document_id })}
-                disabled={ingestMutation.isPending}
-              >
-                摄取
-              </Button>
-            )}
-            {canReIngest && (
-              <Button
-                size="small"
-                icon={<ReloadOutlined />}
-                onClick={() => ingestMutation.mutate({ documentId: record.document_id, forceReingest: true })}
-                disabled={ingestMutation.isPending}
-              >
-                重新摄取
-              </Button>
-            )}
-            {canCancel && (
-              <Button
-                size="small"
-                icon={<StopOutlined />}
-                onClick={() => handleCancelJob(record.document_id)}
-                danger
-              >
-                取消
-              </Button>
-            )}
-            <Popconfirm
-              title="确定要删除这个文档吗？"
-              onConfirm={() => deleteMutation.mutate(record.document_id)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button
-                size="small"
-                danger
-                icon={<DeleteOutlined />}
-                disabled={isProcessing}
-              >
-                删除
-              </Button>
-            </Popconfirm>
-          </Space>
-        );
-      },
-    },
-  ];
-
   return (
     <div>
-      <div className="mb-4 flex justify-between items-center">
-        <h3 className="text-lg font-medium">文档管理</h3>
-        <Space>
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={handleBatchDownload}
-            disabled={selectedRowKeys.length === 0}
-          >
-            批量下载 ({selectedRowKeys.length})
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            onClick={handleBatchProcess}
-            disabled={selectedRowKeys.length === 0 || batchProcessMutation.isPending}
-            loading={batchProcessMutation.isPending}
-          >
-            批量处理 ({selectedRowKeys.length})
-          </Button>
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={handleBatchDelete}
-            disabled={selectedRowKeys.length === 0 || batchDeleteMutation.isPending}
-            loading={batchDeleteMutation.isPending}
-          >
-            批量删除 ({selectedRowKeys.length})
-          </Button>
-          <Upload {...uploadProps}>
-            <Button icon={<UploadOutlined />}>上传文档</Button>
-          </Upload>
-        </Space>
-      </div>
-
-      {/* 过时文档提醒 */}
-      {outdatedDocuments.length > 0 && (
-        <Alert
-          message={`检测到 ${outdatedDocuments.length} 个文档的索引可能已过时`}
-          description="标签字典已更新，建议重新摄取这些文档以获得最佳搜索效果。"
-          type="warning"
-          showIcon
-          className="mb-4"
-          action={
-            <Button
-              size="small"
-              type="primary"
-              onClick={() => {
-                const outdatedIds = outdatedDocuments.map(doc => doc.document_id);
-                setSelectedRowKeys(outdatedIds);
-                batchProcessMutation.mutate({
-                  documentIds: outdatedIds,
-                  forceReindex: true
-                });
-              }}
-              loading={batchProcessMutation.isPending}
-            >
-              批量重新摄取
-            </Button>
-          }
-        />
-      )}
-
-      <Table
-        columns={columns}
-        dataSource={documentsData?.documents || []}
-        rowKey="document_id"
-        loading={isLoading}
-        pagination={{
-          total: documentsData?.total || 0,
-          pageSize: 20,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-        }}
+      <DocumentToolbar
+        selectedCount={selectedRowKeys.length}
+        onBatchDownload={handleBatchDownload}
+        onBatchProcess={handleBatchProcess}
+        onBatchDelete={handleBatchDelete}
+        uploadProps={uploadProps}
+        batchProcessLoading={batchProcessMutation.isPending}
+        batchDeleteLoading={batchDeleteMutation.isPending}
       />
 
-      {/* 上传模态框 */}
-      <Modal
-        title="上传文档"
-        open={uploadModalVisible}
+      <OutdatedDocumentsAlert
+        outdatedDocuments={outdatedDocuments}
+        onBatchReIngest={handleBatchReIngest}
+        loading={batchProcessMutation.isPending}
+      />
+
+      <DocumentTable
+        documents={documentsData?.documents || []}
+        total={documentsData?.total || 0}
+        loading={isLoading}
+        selectedRowKeys={selectedRowKeys}
+        selectionState={selectionState}
+        documentJobStatuses={documentJobStatuses}
+        lastTagDirectoryUpdateTime={kbDetail?.last_tag_directory_update_time}
+        onSelectionChange={handleSelectionChange}
+        onSelectAll={handleSelectAll}
+        onSelectNone={handleSelectNone}
+        onPreview={(documentId) => message.info('预览功能待实现')}
+        onDownload={handleDownload}
+        onIngest={(documentId) => ingestMutation.mutate({ documentId })}
+        onReIngest={(documentId) => ingestMutation.mutate({ documentId, forceReingest: true })}
+        onCancel={handleCancelJob}
+        onDelete={(documentId) => deleteMutation.mutate(documentId)}
+        ingestLoading={ingestMutation.isPending}
+      />
+
+      <UploadModal
+        visible={uploadModalVisible}
         onCancel={() => setUploadModalVisible(false)}
-        footer={null}
-      >
-        <Upload.Dragger {...uploadProps}>
-          <p className="ant-upload-drag-icon">
-            <UploadOutlined />
-          </p>
-          <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-          <p className="ant-upload-hint">
-            支持单个或批量上传。支持的文件类型：PDF、Word、PowerPoint、文本文件等。
-          </p>
-        </Upload.Dragger>
-      </Modal>
+        uploadProps={uploadProps}
+      />
     </div>
   );
 };

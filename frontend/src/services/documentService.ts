@@ -91,16 +91,36 @@ export class DocumentService {
    * 批量删除文档
    */
   async deleteDocuments(kbId: string, documentIds: string[]): Promise<DocumentDeleteResponse[]> {
-    const deletePromises = documentIds.map(id => this.deleteDocument(kbId, id));
     try {
-      return await Promise.all(deletePromises);
+      // 调用新的批量删除接口
+      const response = await apiClient.delete(`${this.baseUrl}/${kbId}/documents/batch`, {
+        data: { document_ids: documentIds },
+        timeout: 60000 // 批量操作增加超时时间
+      });
+
+      const batchResult = response.data;
+
+      // 将批量结果转换为原有格式，保持兼容性
+      return documentIds.map(id => ({
+        success: batchResult.results[id] || false,
+        message: batchResult.results[id] ? '删除成功' : '删除失败'
+      }));
     } catch (error) {
-      console.warn('批量删除过程中出现错误，部分操作可能已成功:', error);
-      // 即使有错误，也返回部分成功的结果
-      const results = await Promise.allSettled(deletePromises);
-      return results.map(result =>
-        result.status === 'fulfilled' ? result.value : { success: false ,message: '批量删除中出现失败'}
-      );
+      console.warn('批量删除失败，回退到逐个删除:', error);
+      // 如果批量删除失败，回退到原有的逐个删除方式
+      const deletePromises = documentIds.map(id => this.deleteDocument(kbId, id));
+      try {
+        return await Promise.all(deletePromises);
+      } catch (fallbackError) {
+        console.warn('批量删除过程中出现错误，部分操作可能已成功:', fallbackError);
+        // 即使有错误，也返回部分成功的结果
+        const results = await Promise.allSettled(deletePromises);
+        return results.map(result =>
+          result.status === 'fulfilled'
+            ? result.value
+            : { success: false , message: result.reason}
+        );
+      }
     }
   }
 

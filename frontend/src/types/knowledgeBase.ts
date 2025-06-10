@@ -51,5 +51,5 @@ export interface KBDetail extends KnowledgeBase {
 export interface KBStats {
   document_count: number;
   chunk_count: number;
-  top_level_tags: string[];
+  tag_dictionary: TagDictionary;
 }

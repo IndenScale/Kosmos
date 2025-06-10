@@ -1,3 +1,4 @@
+import { DocumentRecord } from "./document";
 export interface SearchQuery {
   query: string;
   top_k?: number;
@@ -39,4 +40,37 @@ export enum TagType {
 export interface ActiveTag {
   tag: string;
   type: TagType;
+}
+
+export interface SearchPageState {
+  searchText: string;
+  activeTags: ActiveTag[];
+  searchQuery: string;
+  expandedChunk: string | null;
+  modalOpen: boolean;
+  hoveredResult: string | null;
+}
+
+export interface SearchResultCardProps {
+  result: SearchResult;
+  document?: DocumentRecord;
+  isHovered: boolean;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onExpand: (chunkId: string) => void;
+  onDownload: (documentId: string, filename: string) => void;
+  onTagClick: (tag: string) => void;
+  getResultTagColor: (tag: string) => string;
+}
+
+export interface RecommendedTagsProps {
+  tags: RecommendedTag[];
+  onTagClick: (tag: string) => void;
+  searchResultsLength: number;
+}
+
+export interface ActiveTagsBarProps {
+  activeTags: ActiveTag[];
+  onTagClick: (tag: string, type?: TagType) => void;
+  getTagColor: (type: TagType) => string;
 }

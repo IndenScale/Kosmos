@@ -1,39 +1,47 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Input, Card, Tag, Typography, Spin, Alert, Empty, Divider, Row, Col, Button, Modal, Tooltip } from 'antd';
-import { SearchOutlined, FileTextOutlined, ExpandAltOutlined, DownloadOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { Input, Spin, Alert, Empty, Row, Col, Modal, Typography } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { searchService } from '../../services/searchService';
 import { documentService } from '../../services/documentService';
-import { SearchResult, RecommendedTag, TagType, ActiveTag } from '../../types/search';
+import { SearchResult, TagType, ActiveTag } from '../../types/search';
 import { DocumentRecord } from '../../types/document';
 import { QueryParser } from '../../utils/queryParser';
+import { SearchResultCard } from '../../components/SemanticSearch/SearchResultCard';
+import { RecommendedTags } from '../../components/SemanticSearch/RecommendedTags';
+import { ActiveTagsBar } from '../../components/SemanticSearch/ActiveTagsBar';
+import { getTagColor, getResultTagColor, handleFileDownload } from '../../utils/searchUtils';
+import { SearchPageState } from '../../types/search';
 
 const { Search } = Input;
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 export const KBSearchPage: React.FC = () => {
   const { kbId } = useParams<{ kbId: string }>();
-  const [searchText, setSearchText] = useState('');
-  const [activeTags, setActiveTags] = useState<ActiveTag[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [expandedChunk, setExpandedChunk] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [hoveredResult, setHoveredResult] = useState<string | null>(null);
+
+  const [state, setState] = useState<SearchPageState>({
+    searchText: '',
+    activeTags: [],
+    searchQuery: '',
+    expandedChunk: null,
+    modalOpen: false,
+    hoveredResult: null
+  });
 
   // 构建完整查询字符串
   const fullQuery = useMemo(() => {
-    return QueryParser.buildQuery(searchText, activeTags);
-  }, [searchText, activeTags]);
+    return QueryParser.buildQuery(state.searchText, state.activeTags);
+  }, [state.searchText, state.activeTags]);
 
-  // 执行搜索 - 只在有搜索查询时执行
+  // 执行搜索
   const { data: searchData, isLoading, error } = useQuery({
-    queryKey: ['search', kbId, searchQuery],
-    queryFn: () => searchService.searchKnowledgeBase(kbId!, { query: searchQuery, top_k: 10 }),
-    enabled: !!kbId && !!searchQuery,
+    queryKey: ['search', kbId, state.searchQuery],
+    queryFn: () => searchService.searchKnowledgeBase(kbId!, { query: state.searchQuery, top_k: 10 }),
+    enabled: !!kbId && !!state.searchQuery,
   });
 
-  // 获取文档信息的查询
+  // 获取文档信息
   const documentIds = useMemo(() => {
     if (!searchData?.results) return [];
     return [...new Set(searchData.results.map(r => r.document_id))];
@@ -53,36 +61,42 @@ export const KBSearchPage: React.FC = () => {
     enabled: documentIds.length > 0,
   });
 
-  // 处理搜索 - 只在用户主动触发时执行
+  // 处理搜索
   const handleSearch = (value: string) => {
     const trimmedValue = value.trim();
     if (trimmedValue) {
-      setSearchQuery(trimmedValue);
-      // 解析查询并更新激活标签
       const newActiveTags = QueryParser.getActiveTagsFromQuery(trimmedValue);
-      setActiveTags(newActiveTags);
-      // 提取纯文本部分
       const parsed = QueryParser.parse(trimmedValue);
-      setSearchText(parsed.text);
+
+      setState(prev => ({
+        ...prev,
+        searchQuery: trimmedValue,
+        activeTags: newActiveTags,
+        searchText: parsed.text
+      }));
     }
   };
 
-  // 处理输入框变化 - 允许自由输入空格和其他字符
+  // 处理输入框变化
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // 直接设置完整查询，不做解析处理
-    setSearchText(value);
+    const inputValue = e.target.value;
+    const newActiveTags = QueryParser.getActiveTagsFromQuery(inputValue);
+    const parsed = QueryParser.parse(inputValue);
+    
+    setState(prev => ({ 
+      ...prev, 
+      searchText: parsed.text,
+      activeTags: newActiveTags
+    }));
   };
 
   // 处理标签点击
   const handleTagClick = (tag: string, currentType?: TagType) => {
-    const existingIndex = activeTags.findIndex(t => t.tag === tag);
+    const existingIndex = state.activeTags.findIndex(t => t.tag === tag);
+    let newActiveTags = [...state.activeTags];
 
     if (existingIndex >= 0) {
-      // 标签已存在，切换状态
-      const newActiveTags = [...activeTags];
       const current = newActiveTags[existingIndex];
-
       switch (current.type) {
         case TagType.LIKE:
           current.type = TagType.MUST;
@@ -91,165 +105,71 @@ export const KBSearchPage: React.FC = () => {
           current.type = TagType.MUST_NOT;
           break;
         case TagType.MUST_NOT:
-          // 移除标签
           newActiveTags.splice(existingIndex, 1);
           break;
       }
-
-      setActiveTags(newActiveTags);
     } else {
-      // 新标签，默认为LIKE类型
-      setActiveTags([...activeTags, { tag, type: TagType.LIKE }]);
+      newActiveTags.push({ tag, type: TagType.LIKE });
     }
 
-    // 更新搜索查询
-    const newQuery = QueryParser.buildQuery(searchText, activeTags);
-    if (newQuery.trim()) {
-      setSearchQuery(newQuery);
-    }
-  };
-
-  // 处理搜索结果中的标签点击
-  const handleResultTagClick = (tag: string) => {
-    handleTagClick(tag);
-  };
-
-  // 获取标签颜色
-  const getTagColor = (type: TagType) => {
-    switch (type) {
-      case TagType.LIKE:
-        return 'green';
-      case TagType.MUST:
-        return 'blue';
-      case TagType.MUST_NOT:
-        return 'red';
-      default:
-        return 'default';
-    }
-  };
-
-  // 获取搜索结果标签的颜色
-  const getResultTagColor = (tag: string) => {
-    const activeTag = activeTags.find(t => t.tag === tag);
-    if (activeTag) {
-      switch (activeTag.type) {
-        case TagType.LIKE:
-          return 'green';
-        case TagType.MUST:
-          return 'blue';
-        case TagType.MUST_NOT:
-          return 'red';
-        default:
-          return 'default';
-      }
-    }
-    return 'default';
-  };
-
-  // 获取推荐标签（排除已激活的）
-  const recommendedTags = useMemo(() => {
-    if (!searchData?.recommended_tags) return [];
-    const activeTagNames = new Set(activeTags.map(t => t.tag));
-    return searchData.recommended_tags.filter(t => !activeTagNames.has(t.tag));
-  }, [searchData?.recommended_tags, activeTags]);
-
-  // 渲染搜索结果标签
-  const renderResultTags = (tags: string[]) => {
-    return tags.map(tag => (
-      <Tag
-        key={tag}
-        color={getResultTagColor(tag)}
-        style={{ margin: '2px', cursor: 'pointer' }}
-        onClick={() => handleResultTagClick(tag)}
-      >
-        {tag}
-      </Tag>
-    ));
-  };
-
-  // 限制内容显示行数，悬浮时显示完整内容
-  const truncateContent = (content: string, maxLines: number = 5) => {
-    const lines = content.split('\n');
-    if (lines.length <= maxLines) return content;
-    return lines.slice(0, maxLines).join('\n') + '...';
+    const newQuery = QueryParser.buildQuery(state.searchText, newActiveTags);
+    setState(prev => ({
+      ...prev,
+      activeTags: newActiveTags,
+      searchQuery: newQuery.trim() ? newQuery : prev.searchQuery
+    }));
   };
 
   // 处理文件下载
   const handleDownload = async (documentId: string, filename: string) => {
-    try {
-      const blob = await documentService.downloadDocument(kbId!, documentId);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('下载失败:', error);
-    }
+    await handleFileDownload(kbId!, documentId, filename, documentService.downloadDocument);
   };
 
   // 展开查看原文
   const handleExpandChunk = (chunkId: string) => {
-    setExpandedChunk(chunkId);
-    setModalVisible(true);
+    setState(prev => ({
+      ...prev,
+      expandedChunk: chunkId,
+      modalOpen: true
+    }));
   };
 
-  // 计算EIG说明文本
-  const getEIGExplanation = (hits: number, totalResults: number) => {
-    return `EIG分数计算方式：ABS(${hits} - ${totalResults} / 2) = ${Math.abs(hits - totalResults / 2).toFixed(2)}
-
-EIG分数越低（越接近0），标签质量越高。`;
-  };
+  // 获取推荐标签
+  const recommendedTags = useMemo(() => {
+    if (!searchData?.recommended_tags) return [];
+    const activeTagNames = new Set(state.activeTags.map(t => t.tag));
+    return searchData.recommended_tags.filter(t => !activeTagNames.has(t.tag));
+  }, [searchData?.recommended_tags, state.activeTags]);
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 min-h-screen">
       {/* 搜索框 */}
       <div className="mb-6">
         <Search
           placeholder="输入查询语句，例如：AI未来发展 +技术 -历史 ~应用"
           size="large"
-          value={searchText}
+          value={fullQuery}
           onChange={handleInputChange}
           onSearch={handleSearch}
           enterButton={<SearchOutlined />}
           allowClear
+          className="shadow-sm"
         />
       </div>
 
       {/* 激活标签栏 */}
-      {activeTags.length > 0 && (
-        <div className="mb-6">
-          <Text strong className="mr-3">激活标签：</Text>
-          {[TagType.LIKE, TagType.MUST, TagType.MUST_NOT].map(type =>
-            activeTags
-              .filter(tag => tag.type === type)
-              .map(({ tag, type }) => (
-                <Tag
-                  key={`${tag}-${type}`}
-                  color={getTagColor(type)}
-                  closable
-                  onClose={() => handleTagClick(tag, type)}
-                  onClick={() => handleTagClick(tag, type)}
-                  style={{ cursor: 'pointer', margin: '2px 4px' }}
-                >
-                  {type === TagType.MUST && '+'}
-                  {type === TagType.MUST_NOT && '-'}
-                  {type === TagType.LIKE && '~'}
-                  {tag}
-                </Tag>
-              ))
-          )}
-        </div>
-      )}
+      <ActiveTagsBar
+        activeTags={state.activeTags}
+        onTagClick={handleTagClick}
+        getTagColor={getTagColor}
+      />
 
       <Row gutter={24}>
         {/* 主体搜索结果 */}
         <Col span={18}>
-        <>
+          <>
           {error && (
+
             <Alert
               message="搜索失败"
               description={String(error)}
@@ -257,78 +177,43 @@ EIG分数越低（越接近0），标签质量越高。`;
               className="mb-4"
             />
           )}
-        </>
-          {isLoading && searchQuery && (
-            <div className="text-center py-8">
+          </>
+          {isLoading && state.searchQuery && (
+            <div className="text-center py-12">
               <Spin size="large" />
-              <div className="mt-2 text-gray-500">搜索中...</div>
+              <div className="mt-4 text-gray-500 text-lg">搜索中...</div>
             </div>
           )}
 
           {!isLoading && !error && searchData && (
             <div>
-              <div className="mb-4">
-                <Text type="secondary">
-                  找到 {searchData.results.length} 个相关结果
+              <div className="mb-6">
+                <Text type="secondary" className="text-lg">
+                  找到 <span className="font-semibold text-blue-600">{searchData.results.length}</span> 个相关结果
                 </Text>
               </div>
 
               {searchData.results.length === 0 ? (
-                <Empty description="没有找到相关结果" />
+                <Empty description="没有找到相关结果" className="py-12" />
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {searchData.results.map((result: SearchResult) => {
                     const document = documentsData?.[result.document_id];
-                    const isHovered = hoveredResult === result.chunk_id;
+                    const isHovered = state.hoveredResult === result.chunk_id;
 
                     return (
-                      <Card
+                      <SearchResultCard
                         key={result.chunk_id}
-                        className="hover:shadow-md transition-shadow"
-                        onMouseEnter={() => setHoveredResult(result.chunk_id)}
-                        onMouseLeave={() => setHoveredResult(null)}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center text-sm text-gray-500">
-                            <FileTextOutlined className="mr-1" />
-                            <span>{document?.document?.filename || result.document_id}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<ExpandAltOutlined />}
-                              onClick={() => handleExpandChunk(result.chunk_id)}
-                            >
-                              展开
-                            </Button>
-                            {document && (
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<DownloadOutlined />}
-                                onClick={() => handleDownload(result.document_id, document.document.filename)}
-                              >
-                                下载
-                              </Button>
-                            )}
-                            <div className="text-sm text-gray-400">
-                              相似度: {(result.score * 100).toFixed(1)}%
-                            </div>
-                          </div>
-                        </div>
-
-                        <Paragraph className="mb-3">
-                          {isHovered ? result.content : truncateContent(result.content, 5)}
-                        </Paragraph>
-
-                        {result.tags.length > 0 && (
-                          <div>
-                            <Text type="secondary" className="mr-2">标签：</Text>
-                            {renderResultTags(result.tags)}
-                          </div>
-                        )}
-                      </Card>
+                        result={result}
+                        document={document}
+                        isHovered={isHovered}
+                        onMouseEnter={() => setState(prev => ({ ...prev, hoveredResult: result.chunk_id }))}
+                        onMouseLeave={() => setState(prev => ({ ...prev, hoveredResult: null }))}
+                        onExpand={handleExpandChunk}
+                        onDownload={handleDownload}
+                        onTagClick={handleTagClick}
+                        getResultTagColor={(tag) => getResultTagColor(tag, state.activeTags)}
+                      />
                     );
                   })}
                 </div>
@@ -339,39 +224,11 @@ EIG分数越低（越接近0），标签质量越高。`;
 
         {/* 右侧推荐标签栏 */}
         <Col span={6}>
-          {recommendedTags.length > 0 && (
-            <Card title="推荐标签" className="sticky top-4">
-              <div className="space-y-2">
-                {recommendedTags.map(({ tag, eig_score, freq }) => (
-                  <div
-                    key={tag}
-                    className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => handleTagClick(tag)}
-                  >
-                    <div className="flex items-center flex-1">
-                      <Tag color="geekblue" className="mb-0 mr-2">
-                        {tag}
-                      </Tag>
-                      <Text type="secondary" className="text-xs">
-                        hits: {freq || 0}
-                      </Text>
-                    </div>
-                    <div className="flex items-center">
-                      <Text className="text-xs mr-1">
-                        {eig_score.toFixed(2)}
-                      </Text>
-                      <Tooltip
-                        title={getEIGExplanation(freq || 0, searchData?.results.length || 0)}
-                        placement="left"
-                      >
-                        <QuestionCircleOutlined className="text-gray-400 cursor-help" />
-                      </Tooltip>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
+          <RecommendedTags
+            tags={recommendedTags}
+            onTagClick={handleTagClick}
+            searchResultsLength={searchData?.results.length || 0}
+          />
         </Col>
       </Row>
 
@@ -379,11 +236,14 @@ EIG分数越低（越接近0），标签质量越高。`;
       <Modal
         title="原文内容"
         width={800}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        open={state.modalOpen}
+        onCancel={() => setState(prev => ({ ...prev, modalOpen: false }))}
         footer={null}
+        className="top-8"
       >
-        {expandedChunk && searchData?.results.find(r => r.chunk_id === expandedChunk)?.content}
+        <div className="max-h-96 overflow-y-auto p-4 bg-gray-50 rounded">
+          {state.expandedChunk && searchData?.results.find(r => r.chunk_id === state.expandedChunk)?.content}
+        </div>
       </Modal>
     </div>
   );
