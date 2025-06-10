@@ -73,6 +73,8 @@ class AIUtils:
             result = response.choices[0].message.content.strip()
 
             result = self._clean_json_response(result)
+            if not result:
+                result = "[]"
             # 提取第一个和最后一个{}之间的内容
             try:
                 first_brace = result.index('[')

@@ -5,6 +5,7 @@ from typing import List
 import os
 from app.db.database import get_db
 from app.models.user import User
+from app.models.document import Document
 from app.schemas.document import DocumentResponse, KBDocumentResponse, DocumentListResponse
 from app.services.document_service import DocumentService
 from app.dependencies.auth import get_current_user
@@ -50,7 +51,7 @@ def upload_document(
         pass
     else:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"不支持的文件类型。支持的格式：PDF、TXT、MD、DOC、DOCX、PPTX、XLSX、图片(PNG/JPG)及代码文件"
         )
 
@@ -63,16 +64,16 @@ def upload_document(
         )
 
     doc_service = DocumentService(db)
-    
+
     try:
         document = doc_service.upload_document(kb_id, current_user.id, file)
-        
+
         # 重新查询文档以确保加载所有关联数据
         from sqlalchemy.orm import joinedload
         document_with_relations = db.query(Document).options(
             joinedload(Document.physical_file)
         ).filter(Document.id == document.id).first()
-        
+
         # 手动构建响应数据
         response_data = {
             "id": document_with_relations.id,
@@ -82,14 +83,14 @@ def upload_document(
             "file_size": document_with_relations.physical_file.file_size if document_with_relations.physical_file else 0,
             "file_path": document_with_relations.physical_file.file_path if document_with_relations.physical_file else ""
         }
-        
+
         return DocumentResponse(**response_data)
-        
+
     except Exception as e:
         # 记录错误日志
         import logging
         logging.error(f"文档上传失败: {str(e)}")
-        
+
         # 返回具体的错误信息
         if "duplicate" in str(e).lower() or "unique" in str(e).lower():
             raise HTTPException(

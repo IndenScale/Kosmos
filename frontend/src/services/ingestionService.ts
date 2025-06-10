@@ -5,7 +5,8 @@ import {
   IngestionStartRequest,
   IngestionStartResponse,
   BatchIngestionRequest,
-  BatchIngestionResponse
+  BatchIngestionResponse,
+  DocumentJobStatus
 } from '../types/ingestion';
 
 export class IngestionService {
@@ -50,18 +51,47 @@ export class IngestionService {
   }
 
   /**
-   * 获取任务状态
+   * 获取单个任务状态
    */
   async getJobStatus(jobId: string): Promise<IngestionJob> {
     const response = await apiClient.get(`${this.baseUrl}/jobs/${jobId}`);
     return response.data;
   }
 
+  /**
+   * 获取知识库的所有任务
+   */
   async getKBJobs(kbId: string): Promise<IngestionJob[]> {
     const response = await apiClient.get(`${this.baseUrl}/kbs/${kbId}/jobs`);
     return response.data;
   }
 
+  /**
+   * 获取知识库中所有文档的任务状态
+   */
+  async getDocumentJobStatuses(kbId: string): Promise<DocumentJobStatus[]> {
+    const response = await apiClient.get(`${this.baseUrl}/kbs/${kbId}/job-statuses`);
+    return response.data;
+  }
+
+  /**
+   * 获取特定文档的当前任务状态
+   */
+  async getDocumentJobStatus(kbId: string, documentId: string): Promise<DocumentJobStatus | null> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/kbs/${kbId}/documents/${documentId}/job-status`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null; // 没有正在进行的任务
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 取消任务
+   */
   async cancelJob(jobId: string): Promise<void> {
     await apiClient.post(`${this.baseUrl}/jobs/${jobId}/cancel`);
   }
