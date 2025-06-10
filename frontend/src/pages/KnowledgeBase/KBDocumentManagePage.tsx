@@ -320,7 +320,11 @@ export const KBDocumentManagePage: React.FC = () => {
         'text/plain',
         'text/markdown',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-        'application/msword' // .doc
+        'application/msword', // .doc
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+        'image/png',
+        'image/jpeg',
+        'image/jpg'
       ];
 
       // 允许的文件扩展名（用于补充 MIME 类型不准确的情况）
@@ -329,7 +333,18 @@ export const KBDocumentManagePage: React.FC = () => {
         'txt',
         'md',
         'docx',
-        'doc'
+        'doc',
+        'pptx',
+        'xlsx',
+        'py',
+        'js',
+        'ts',
+        'java',
+        'c',
+        'cpp',
+        'png',
+        'jpg',
+        'jpeg'
       ];
 
       // 获取文件扩展名
@@ -340,7 +355,7 @@ export const KBDocumentManagePage: React.FC = () => {
       const isValidType = allowedMimeTypes.includes(file.type) || allowedExtensions.includes(fileExtension);
 
       if (!isValidType) {
-        message.error('只支持 PDF、TXT、MD、DOC、DOCX 格式的文件');
+        message.error('支持的文件格式：PDF、TXT、MD、DOC、DOCX、PPTX、图片(PNG/JPG)及代码文件');
         return false;
       }
 

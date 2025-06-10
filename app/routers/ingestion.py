@@ -7,23 +7,23 @@ from app.models.user import User
 from app.dependencies.auth import get_current_user
 from app.dependencies.kb_auth import get_kb_admin_or_owner
 from app.services.ingestion_service import IngestionService
-from app.schemas.ingestion import IngestionJobResponse, IngestionJobListResponse
+from app.schemas.ingestion import IngestionJobResponse, IngestionJobListResponse, QueueStatsResponse
 
 router = APIRouter(prefix="/api/v1", tags=["ingestion"])
 
 @router.post("/kbs/{kb_id}/documents/{document_id}/ingest", response_model=IngestionJobResponse, status_code=status.HTTP_202_ACCEPTED)
-def start_ingestion(
+async def start_ingestion(
     kb_id: str,
     document_id: str,
     current_user: User = Depends(get_current_user),
     kb_member = Depends(get_kb_admin_or_owner),
     db: Session = Depends(get_db)
 ):
-    """启动文档摄入任务"""
+    """启动文档摄入任务（异步）"""
     ingestion_service = IngestionService(db)
 
     try:
-        job_id = ingestion_service.start_ingestion_job(kb_id, document_id, current_user.id)
+        job_id = await ingestion_service.start_ingestion_job(kb_id, document_id, current_user.id)
         job = ingestion_service.get_job_status(job_id)
         return IngestionJobResponse.from_orm(job)
     except Exception as e:
@@ -59,3 +59,13 @@ def list_kb_jobs(
         jobs=[IngestionJobResponse.from_orm(job) for job in jobs],
         total=len(jobs)
     )
+
+@router.get("/queue/stats", response_model=QueueStatsResponse)
+def get_queue_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取队列统计信息"""
+    ingestion_service = IngestionService(db)
+    stats = ingestion_service.get_queue_stats()
+    return QueueStatsResponse(**stats)

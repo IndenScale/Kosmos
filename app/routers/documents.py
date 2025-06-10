@@ -26,19 +26,33 @@ def upload_document(
         "application/pdf",
         "text/plain",
         "text/markdown",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/msword",
-        "application/octet-stream"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+        "application/msword",  # .doc
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+        "application/octet-stream",  # 通用二进制文件类型
+        "image/png",
+        "image/jpeg",
+        "image/jpg"
     }
 
     # 在验证类型后添加扩展名验证
-    allowed_extensions = {'.pdf', '.txt', '.md', '.docx', '.doc', '.pptx'}
+    allowed_extensions = {
+        '.pdf', '.txt', '.md', '.docx', '.doc', '.pptx', '.xlsx',
+        '.png', '.jpg', '.jpeg',
+        '.py', '.js', '.ts', '.java', '.c', '.cpp', '.h', '.hpp',
+        '.html', '.css', '.json', '.xml', '.yaml', '.yml'
+    }
     file_extension = os.path.splitext(file.filename)[1].lower()
 
-    if file.content_type in allowed_types and file_extension in allowed_extensions:
+    # 检查文件类型（MIME类型或扩展名匹配即可）
+    if file.content_type in allowed_types or file_extension in allowed_extensions:
         pass
     else:
-        raise HTTPException(status_code=400, detail="不支持的文件类型")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"不支持的文件类型。支持的格式：PDF、TXT、MD、DOC、DOCX、PPTX、XLSX、图片(PNG/JPG)及代码文件"
+        )
 
     # 验证文件大小 (10MB限制)
     max_size = 10 * 1024 * 1024

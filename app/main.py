@@ -2,10 +2,10 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.db.database import create_tables
+from app.db.database import Base, create_tables
 from app.routers import auth, knowledge_bases, documents, ingestion, search
+from app.utils.task_queue import task_queue
 
-from app.db.database import Base
 import app.models.user
 import app.models.knowledge_base
 import app.models.document
@@ -16,7 +16,13 @@ async def lifespan(app: FastAPI):
     print("应用启动，开始创建数据库表...")
     create_tables()
     print("数据库表检查/创建完成。")
+    await task_queue.start()
+    print("异步任务队列已启动")
     yield
+
+    # 关闭时运行
+    await task_queue.stop()
+    print("异步任务队列已停止")
 
 # 创建FastAPI应用
 app = FastAPI(

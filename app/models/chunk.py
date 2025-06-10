@@ -24,6 +24,7 @@ class IngestionJob(Base):
     id = Column(String, primary_key=True)  # UUID
     kb_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    task_id = Column(String, nullable=True)  # 队列任务ID
     status = Column(String, nullable=False)  # 'pending', 'processing', 'completed', 'failed'
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
