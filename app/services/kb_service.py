@@ -242,3 +242,37 @@ class KBService:
             KBMember.user_id == user_id
         ).first()
         return member.role if member else None
+
+    def get_kb_stats(self, kb_id: str) -> dict:
+        """获取知识库统计信息"""
+        kb = self.get_kb_by_id(kb_id)
+        if not kb:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Knowledge base not found"
+            )
+
+        # 通过DocumentService获取统计信息
+        from app.services.document_service import DocumentService
+        doc_service = DocumentService(self.db)
+        
+        document_count = doc_service.get_kb_document_count(kb_id)
+        chunk_count = doc_service.get_kb_chunk_count(kb_id)
+
+        # 获取顶级标签
+        top_level_tags = []
+        if kb.tag_dictionary:
+            if isinstance(kb.tag_dictionary, dict):
+                top_level_tags = list(kb.tag_dictionary.keys())[:10]
+            elif isinstance(kb.tag_dictionary, str):
+                try:
+                    tag_dict = json.loads(kb.tag_dictionary)
+                    top_level_tags = list(tag_dict.keys())[:10]
+                except (json.JSONDecodeError, TypeError):
+                    top_level_tags = []
+
+        return {
+            "document_count": document_count,
+            "chunk_count": chunk_count,
+            "top_level_tags": top_level_tags
+        }

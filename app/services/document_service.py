@@ -133,8 +133,8 @@ class DocumentService:
                     "filename": kb_doc.document.filename,
                     "file_type": kb_doc.document.file_type,
                     "created_at": kb_doc.document.created_at,
-                    "uploaded_by": kb_doc.document.uploaded_by,
-                    "physical_file": kb_doc.document.physical_file
+                    "file_size": kb_doc.document.physical_file.file_size if kb_doc.document.physical_file else 0,
+                    "file_path": kb_doc.document.physical_file.file_path if kb_doc.document.physical_file else ""
                 },
                 "chunk_count": len(chunks),
                 "uploader_username": kb_doc.document.uploader.username if kb_doc.document.uploader else None
@@ -221,3 +221,11 @@ class DocumentService:
             raise e
             
         return False
+
+    def get_kb_document_count(self, kb_id: str) -> int:
+        """获取知识库文档数量"""
+        return self.db.query(KBDocument).filter(KBDocument.kb_id == kb_id).count()
+    
+    def get_kb_chunk_count(self, kb_id: str) -> int:
+        """获取知识库chunk数量"""
+        return self.chunk_repo.get_kb_chunk_count(kb_id)

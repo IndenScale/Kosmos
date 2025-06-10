@@ -64,3 +64,7 @@ class ChunkRepository:
         ).all()
 
         return outdated_chunks
+
+    def get_kb_chunk_count(self, kb_id: str) -> int:
+        """获取知识库chunk数量"""
+        return self.db.query(Chunk).filter(Chunk.kb_id == kb_id).count()

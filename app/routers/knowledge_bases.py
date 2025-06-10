@@ -217,15 +217,7 @@ def remove_knowledge_base_member(
     kb_service.remove_member(kb_id, user_id)
 
 
-@router.get("/{kb_id}/stats")
-def get_knowledge_base_stats(
-    kb_id: str = Path(...),
-    current_user: User = Depends(get_kb_or_public),
-    db: Session = Depends(get_db)
-):
-    """获取知识库统计信息"""
-    kb_service = KBService(db)
-    kb = kb_service.get_kb_by_id(kb_id)
+
 
     if not kb:
         raise HTTPException(
@@ -240,7 +232,7 @@ def get_knowledge_base_stats(
     doc_repo = DocumentRepository(db)
     chunk_repo = ChunkRepository(db)
 
-    document_count = len(doc_repo.get_documents_by_id(kb_id))
+    document_count = len(doc_repo.get_document_by_id(kb_id))
     chunk_count = len(chunk_repo.get_chunks_by_kb(kb_id))
 
     # 获取顶级标签
@@ -260,3 +252,14 @@ def get_knowledge_base_stats(
         "chunk_count": chunk_count,
         "top_level_tags": top_level_tags
     }
+
+@router.get("/{kb_id}/stats")
+def get_knowledge_base_stats(
+    kb_id: str = Path(...),
+    current_user: User = Depends(get_kb_or_public),
+    db: Session = Depends(get_db)
+):
+    """获取知识库统计信息"""
+    kb_service = KBService(db)
+    stats = kb_service.get_kb_stats(kb_id)
+    return stats

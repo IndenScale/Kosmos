@@ -51,10 +51,23 @@ def upload_document(
     doc_service = DocumentService(db)
     document = doc_service.upload_document(kb_id, current_user.id, file)
     
-    # 确保加载关联的物理文件信息
-    db.refresh(document)
+    # 重新查询文档以确保加载所有关联数据
+    from sqlalchemy.orm import joinedload
+    document_with_relations = db.query(Document).options(
+        joinedload(Document.physical_file)
+    ).filter(Document.id == document.id).first()
     
-    return DocumentResponse.model_validate(document)
+    # 手动构建响应数据
+    response_data = {
+        "id": document_with_relations.id,
+        "filename": document_with_relations.filename,
+        "file_type": document_with_relations.file_type,
+        "created_at": document_with_relations.created_at,
+        "file_size": document_with_relations.physical_file.file_size if document_with_relations.physical_file else 0,
+        "file_path": document_with_relations.physical_file.file_path if document_with_relations.physical_file else ""
+    }
+    
+    return DocumentResponse(**response_data)
 
 @router.get("/{kb_id}/documents", response_model=DocumentListResponse)
 def list_documents(
