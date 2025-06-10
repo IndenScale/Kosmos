@@ -1,7 +1,7 @@
 // src/services/KnowledgeBase.ts
-import { KBCreate, KBUpdate, KnowledgeBase, KBDetail } from '../types/KnowledgeBase';
+import { KBCreate, KBUpdate, KnowledgeBase, KBDetail } from '../types/knowledgeBase';
 import apiClient from './apiClient';
-import { TagDictionary } from '../types/KnowledgeBase';
+import { TagDictionary } from '../types/knowledgeBase';
 
 export const KnowledgeBaseService = {
   async createKB(data: KBCreate): Promise<KnowledgeBase> {

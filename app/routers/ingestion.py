@@ -69,3 +69,22 @@ def get_queue_stats(
     ingestion_service = IngestionService(db)
     stats = ingestion_service.get_queue_stats()
     return QueueStatsResponse(**stats)
+
+@router.post("/api/v1/kbs/{kb_id}/documents/{document_id}/reindex")
+async def reindex_document(
+    kb_id: str,
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    kb_member = Depends(get_kb_admin_or_owner),
+    db: Session = Depends(get_db)
+):
+    """重新索引文档（删除原有索引后重新建立）"""
+    ingestion_service = IngestionService(db)
+    
+    # 删除原有索引
+    await ingestion_service.delete_document_index(kb_id, document_id)
+    
+    # 重新开始索引任务
+    job = await ingestion_service.start_ingestion_job(kb_id, document_id)
+    
+    return {"job_id": job.id, "status": "started"}

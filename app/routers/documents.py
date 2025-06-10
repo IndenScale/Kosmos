@@ -12,7 +12,7 @@ from app.dependencies.kb_auth import get_kb_admin_or_owner, get_kb_member
 
 router = APIRouter(prefix="/api/v1/kbs", tags=["documents"])
 
-@router.post("/{kb_id}/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{kb_id}/documents", response_model=DocumentResponse)
 def upload_document(
     kb_id: str,
     file: UploadFile = File(...),
@@ -63,25 +63,44 @@ def upload_document(
         )
 
     doc_service = DocumentService(db)
-    document = doc_service.upload_document(kb_id, current_user.id, file)
     
-    # 重新查询文档以确保加载所有关联数据
-    from sqlalchemy.orm import joinedload
-    document_with_relations = db.query(Document).options(
-        joinedload(Document.physical_file)
-    ).filter(Document.id == document.id).first()
-    
-    # 手动构建响应数据
-    response_data = {
-        "id": document_with_relations.id,
-        "filename": document_with_relations.filename,
-        "file_type": document_with_relations.file_type,
-        "created_at": document_with_relations.created_at,
-        "file_size": document_with_relations.physical_file.file_size if document_with_relations.physical_file else 0,
-        "file_path": document_with_relations.physical_file.file_path if document_with_relations.physical_file else ""
-    }
-    
-    return DocumentResponse(**response_data)
+    try:
+        document = doc_service.upload_document(kb_id, current_user.id, file)
+        
+        # 重新查询文档以确保加载所有关联数据
+        from sqlalchemy.orm import joinedload
+        document_with_relations = db.query(Document).options(
+            joinedload(Document.physical_file)
+        ).filter(Document.id == document.id).first()
+        
+        # 手动构建响应数据
+        response_data = {
+            "id": document_with_relations.id,
+            "filename": document_with_relations.filename,
+            "file_type": document_with_relations.file_type,
+            "created_at": document_with_relations.created_at,
+            "file_size": document_with_relations.physical_file.file_size if document_with_relations.physical_file else 0,
+            "file_path": document_with_relations.physical_file.file_path if document_with_relations.physical_file else ""
+        }
+        
+        return DocumentResponse(**response_data)
+        
+    except Exception as e:
+        # 记录错误日志
+        import logging
+        logging.error(f"文档上传失败: {str(e)}")
+        
+        # 返回具体的错误信息
+        if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+            raise HTTPException(
+                status_code=409,
+                detail="文档已存在于该知识库中"
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"文档上传失败: {str(e)}"
+            )
 
 @router.get("/{kb_id}/documents", response_model=DocumentListResponse)
 def list_documents(

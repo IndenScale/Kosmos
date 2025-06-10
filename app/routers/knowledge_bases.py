@@ -54,13 +54,12 @@ def list_my_knowledge_bases(
         if isinstance(kb.tag_dictionary, str):
             try:
                 tag_dict = kb.tag_dictionary
-                # tag_dict = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
             except (json.JSONDecodeError, TypeError):
                 tag_dict = {}
         else:
             tag_dict = kb.tag_dictionary or {}
 
-        # 手动构建响应对象，避免from_orm的类型验证问题
+        # 手动构建响应对象，包含标签字典更新时间
         kb_data = KBResponse(
             id=kb.id,
             name=kb.name,
@@ -69,6 +68,7 @@ def list_my_knowledge_bases(
             tag_dictionary=tag_dict,
             milvus_collection_id=kb.milvus_collection_id,
             is_public=kb.is_public,
+            last_tag_directory_update_time=kb.last_tag_directory_update_time,  # 添加这个字段
             created_at=kb.created_at
         )
         result.append(kb_data)
@@ -109,9 +109,9 @@ def get_knowledge_base(
         "name": kb.name,
         "description": kb.description,
         "owner_id": kb.owner_id,
-        # "tag_dictionary": json.loads(kb.tag_dictionary) if kb.tag_dictionary else {},
         "tag_dictionary": kb.tag_dictionary,
         "is_public": kb.is_public,
+        "last_tag_directory_update_time": kb.last_tag_directory_update_time,  # 添加这个字段
         "created_at": kb.created_at,
         "members": member_responses,
         "owner_username": kb.owner.username

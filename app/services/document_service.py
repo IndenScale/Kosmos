@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from fastapi import HTTPException, UploadFile
 from typing import List, Optional
 import os
@@ -7,6 +8,7 @@ import hashlib
 import mimetypes
 import uuid
 from app.models.document import Document, KBDocument, PhysicalFile
+from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
 from app.repositories.document_repo import DocumentRepository
 from app.repositories.chunk_repo import ChunkRepository
@@ -56,7 +58,7 @@ class DocumentService:
             if not physical_file:
                 # 保存物理文件
                 file_path = self._save_physical_file(content, content_hash, uploaded_file.filename)
-                
+
                 # 创建物理文件记录
                 physical_file = PhysicalFile(
                     content_hash=content_hash,
@@ -93,7 +95,7 @@ class DocumentService:
 
             self.db.commit()
             self.db.refresh(document)
-            
+
             return document
 
         except Exception as e:
@@ -109,19 +111,32 @@ class DocumentService:
 
     def get_kb_documents_with_chunk_count(self, kb_id: str) -> List[dict]:
         """获取知识库中的所有文档及其chunks数量"""
-        # 使用JOIN一次性获取文档、物理文件和用户信息
+        # 首先获取知识库信息
+        kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+        if not kb:
+            return []
+
+        # 获取文档列表
         kb_documents = self.db.query(KBDocument).filter(
             KBDocument.kb_id == kb_id
         ).options(
             joinedload(KBDocument.document).joinedload(Document.physical_file),
             joinedload(KBDocument.document).joinedload(Document.uploader)
         ).all()
-    
+
         result = []
-    
         for kb_doc in kb_documents:
+            # 判断索引是否失效
+            is_index_outdated = False
+            if kb.last_tag_directory_update_time and kb_doc.last_ingest_time:
+                # 如果标签字典更新时间晚于文档最后摄入时间，则索引失效
+                is_index_outdated = kb.last_tag_directory_update_time > kb_doc.last_ingest_time
+            elif kb.last_tag_directory_update_time and not kb_doc.last_ingest_time:
+                # 如果有标签字典更新但文档从未摄入，则需要摄入
+                is_index_outdated = True
+
             chunks = self.chunk_repo.get_chunks_by_document(kb_doc.document_id)
-            
+
             # 构建完整的文档数据
             doc_dict = {
                 "kb_id": kb_doc.kb_id,
@@ -139,8 +154,9 @@ class DocumentService:
                 "chunk_count": len(chunks),
                 "uploader_username": kb_doc.document.uploader.username if kb_doc.document.uploader else None
             }
+            doc_dict["is_index_outdated"] = is_index_outdated
             result.append(doc_dict)
-    
+
         return result
 
     def get_kb_document(self, kb_id: str, document_id: str) -> Optional[KBDocument]:
@@ -158,7 +174,7 @@ class DocumentService:
         document = self.db.query(Document).options(
             joinedload(Document.physical_file)
         ).filter(Document.id == document_id).first()
-        
+
         if document and document.physical_file and os.path.exists(document.physical_file.file_path):
             return document.physical_file.file_path
         return None
@@ -170,7 +186,7 @@ class DocumentService:
             document = self.db.query(Document).options(
                 joinedload(Document.physical_file)
             ).filter(Document.id == document_id).first()
-            
+
             if not document:
                 return False
 
@@ -187,45 +203,45 @@ class DocumentService:
                 KBDocument.kb_id == kb_id,
                 KBDocument.document_id == document_id
             ).first()
-            
+
             if kb_doc:
                 self.db.delete(kb_doc)
-                
+
                 # 检查文档是否还被其他知识库引用
                 other_kb_refs = self.db.query(KBDocument).filter(
                     KBDocument.document_id == document_id
                 ).count()
-                
+
                 if other_kb_refs == 0:
                     # 删除文档记录
                     content_hash = document.content_hash
                     self.db.delete(document)
-                    
+
                     # 减少物理文件引用计数
                     physical_file = document.physical_file
-                    
+
                     if physical_file:
                         physical_file.reference_count -= 1
-                        
+
                         # 如果没有引用了，删除物理文件
                         if physical_file.reference_count <= 0:
                             if os.path.exists(physical_file.file_path):
                                 os.remove(physical_file.file_path)
                             self.db.delete(physical_file)
-                
+
                 self.db.commit()
                 return True
-                
+
         except Exception as e:
             self.db.rollback()
             raise e
-            
+
         return False
 
     def get_kb_document_count(self, kb_id: str) -> int:
         """获取知识库文档数量"""
         return self.db.query(KBDocument).filter(KBDocument.kb_id == kb_id).count()
-    
+
     def get_kb_chunk_count(self, kb_id: str) -> int:
         """获取知识库chunk数量"""
         return self.chunk_repo.get_kb_chunk_count(kb_id)

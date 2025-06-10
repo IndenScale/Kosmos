@@ -26,6 +26,7 @@ class KBDocumentResponse(BaseModel):
     document: DocumentResponse
     chunk_count: int = 0
     uploader_username: Optional[str] = None
+    is_index_outdated: bool = False  # 新增：索引是否失效
     
     class Config:
         from_attributes = True

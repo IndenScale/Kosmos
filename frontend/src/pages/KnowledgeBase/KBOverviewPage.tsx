@@ -36,7 +36,7 @@ import {
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
-import { TagDictionary } from '../../types/KnowledgeBase';
+import { TagDictionary } from '../../types/knowledgeBase';
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 const { confirm } = Modal;

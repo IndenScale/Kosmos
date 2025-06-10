@@ -1,58 +1,47 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Table, Button, Upload, Modal, message, Space, Tag, Popconfirm, Checkbox, Alert } from 'antd';
-import { UploadOutlined, DownloadOutlined, DeleteOutlined, EyeOutlined, PlayCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import {
+  UploadOutlined,
+  DownloadOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  PlayCircleOutlined,
+  LoadingOutlined,
+  ExclamationCircleOutlined,
+  ClockCircleOutlined,
+  ReloadOutlined
+} from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { UploadProps } from 'antd';
+
+// 导入类型定义
+import {
+  DocumentRecord,
+  SelectionState,
+  DocumentStatus,
+  BatchAction
+} from '../../types/document';
+import { IngestionJobStatus } from '../../types/ingestion';
+import { KBDetail } from '../../types/knowledgeBase';
+
+// 导入服务
 import { documentService } from '../../services/documentService';
 import { ingestionService } from '../../services/ingestionService';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
-import { DocumentRecord as  ImportedDocumentRecord} from '../../types/KnowledgeBase';
-import type { UploadProps } from 'antd';
-
-interface DocumentRecord {
-  document_id: string;
-  kb_id: string;
-  uploaded_by: string;
-  upload_at: string;
-  chunk_count?: number;
-  document: {
-    id: string;
-    filename: string;
-    file_type: string;
-    file_size: number;
-    file_path: string;
-    created_at: string;
-  };
-  // 添加用户名字段
-  uploader_username?: string;
-}
-
-// 选择状态枚举
-enum SelectionState {
-  NONE = 'none',       // 未选择
-  PARTIAL = 'partial', // 部分选择
-  PAGE = 'page',       // 本页全选
-  ALL = 'all'          // 全部选择
-}
-
-// 辅助函数：判断文档是否过时
-const isDocumentOutdated = (document: ImportedDocumentRecord, kbLastTagUpdate?: string): boolean => {
-  if (!document.last_ingest_time || !kbLastTagUpdate) {
-    return false;
-  }
-  return new Date(document.last_ingest_time) < new Date(kbLastTagUpdate);
-};
 
 export const KBDocumentManagePage: React.FC = () => {
   const { kbId } = useParams<{ kbId: string }>();
   const queryClient = useQueryClient();
+
+  // 状态管理
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [processingDocs, setProcessingDocs] = useState<Set<string>>(new Set());
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
-  // 获取知识库详情（用于获取标签字典更新时间）
+  // 获取知识库详情
   const { data: kbDetail } = useQuery({
-    queryKey: ['KnowledgeBase', kbId],
+    queryKey: ['knowledgeBase', kbId],
     queryFn: () => KnowledgeBaseService.getKBDetail(kbId!),
     enabled: !!kbId,
   });
@@ -64,21 +53,20 @@ export const KBDocumentManagePage: React.FC = () => {
     enabled: !!kbId,
   });
 
-  // 计算过时文档数量
+  // 计算过时文档
   const outdatedDocuments = useMemo(() => {
     if (!documentsData?.documents || !kbDetail?.last_tag_directory_update_time) {
       return [];
     }
     return documentsData.documents.filter((doc: DocumentRecord) =>
-      isDocumentOutdated(doc, kbDetail.last_tag_directory_update_time)
+      documentService.isDocumentOutdated(doc, kbDetail.last_tag_directory_update_time)
     );
   }, [documentsData, kbDetail]);
 
-  // 计算当前选择状态
+  // 计算选择状态
   const selectionState = useMemo(() => {
     if (!documentsData?.documents) return SelectionState.NONE;
 
-    // 所有文档都可以被选中，不再过滤
     const allDocumentIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
     const currentPageIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
 
@@ -96,53 +84,147 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [selectedRowKeys, documentsData]);
 
+  // 获取文档状态
+  const getDocumentStatus = useCallback((document: DocumentRecord): DocumentStatus => {
+    const isProcessing = processingDocs.has(document.document_id);
+    const isIngested = document.chunk_count && document.chunk_count > 0;
+    const isOutdated = documentService.isDocumentOutdated(
+      document,
+      kbDetail?.last_tag_directory_update_time
+    );
+
+    if (isProcessing) return DocumentStatus.INGESTING;
+    if (isIngested && isOutdated) return DocumentStatus.OUTDATED;
+    if (isIngested) return DocumentStatus.INGESTED;
+    return DocumentStatus.NOT_INGESTED;
+  }, [processingDocs, kbDetail]);
+
   // 处理选择状态切换
-  const handleSelectionChange = () => {
+  const handleSelectionChange = useCallback(() => {
     if (!documentsData?.documents) return;
 
-    // 所有文档都可以被选中
     const allDocumentIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
     const currentPageIds = documentsData.documents.map((doc: DocumentRecord) => doc.document_id);
 
     switch (selectionState) {
       case SelectionState.NONE:
-        // 未选择 -> 本页全选
         setSelectedRowKeys(currentPageIds);
         break;
       case SelectionState.PARTIAL:
-        // 部分选择 -> 本页全选
         setSelectedRowKeys([
           ...selectedRowKeys,
           ...currentPageIds.filter((id: string) => !selectedRowKeys.includes(id))
         ]);
         break;
       case SelectionState.PAGE:
-        // 本页全选 -> 全部选择
         setSelectedRowKeys(allDocumentIds);
         break;
       case SelectionState.ALL:
-        // 全部选择 -> 未选择
         setSelectedRowKeys([]);
         break;
     }
-  };
+  }, [selectionState, selectedRowKeys, documentsData]);
 
-  // 获取选择框的显示文本
-  const getSelectionText = () => {
+  // 获取选择框显示文本
+  const getSelectionText = useCallback(() => {
     switch (selectionState) {
-      case SelectionState.NONE:
-        return '选择';
-      case SelectionState.PARTIAL:
-        return '部分';
-      case SelectionState.PAGE:
-        return '本页';
-      case SelectionState.ALL:
-        return '全部';
+      case SelectionState.NONE: return '选择';
+      case SelectionState.PARTIAL: return '部分';
+      case SelectionState.PAGE: return '本页';
+      case SelectionState.ALL: return '全部';
     }
-  };
+  }, [selectionState]);
+
+  // 文档上传
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => documentService.uploadDocument(kbId!, file),
+    onSuccess: () => {
+      message.success('文档上传成功');
+      setUploadModalVisible(false);
+      queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '上传失败');
+    },
+  });
+
+  // 文档删除
+  const deleteMutation = useMutation({
+    mutationFn: (documentId: string) => documentService.deleteDocument(kbId!, documentId),
+    onSuccess: (data, documentId) => {
+      message.success('文档删除成功');
+      queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
+      setSelectedRowKeys(prev => prev.filter(id => id !== documentId));
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '删除失败');
+    },
+  });
+
+  // 文档摄取
+  const ingestMutation = useMutation({
+    mutationFn: (documentId: string) => ingestionService.startIngestion(kbId!, documentId),
+    onSuccess: (data, documentId) => {
+      message.success('摄取任务已启动');
+      setProcessingDocs(prev => new Set([...prev, documentId]));
+      pollJobStatus(data.id, documentId);
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '摄取启动失败');
+    },
+  });
+
+  // 批量摄取
+  const batchIngestMutation = useMutation({
+    mutationFn: (documentIds: string[]) => ingestionService.startBatchIngestion(kbId!, documentIds),
+    onSuccess: (results, documentIds) => {
+      message.success(`已启动 ${results.success_count} 个文档的摄取任务`);
+      if (results.failed_count > 0) {
+        message.warning(`${results.failed_count} 个文档摄取启动失败`);
+      }
+      setProcessingDocs(prev => new Set([...prev, ...documentIds]));
+      results.jobs.forEach((job, index) => {
+        pollJobStatus(job.id, documentIds[index]);
+      });
+      setSelectedRowKeys([]);
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '批量摄取启动失败');
+    },
+  });
+
+  // 轮询任务状态
+  const pollJobStatus = useCallback((jobId: string, documentId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const job = await ingestionService.getJobStatus(jobId);
+        if (job.status === IngestionJobStatus.COMPLETED || job.status === IngestionJobStatus.FAILED) {
+          clearInterval(interval);
+          setProcessingDocs(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(documentId);
+            return newSet;
+          });
+          if (job.status === IngestionJobStatus.COMPLETED) {
+            message.success('文档摄取完成');
+            queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
+          } else {
+            message.error('文档摄取失败');
+          }
+        }
+      } catch (error) {
+        clearInterval(interval);
+        setProcessingDocs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(documentId);
+          return newSet;
+        });
+      }
+    }, 2000);
+  }, [queryClient, kbId]);
 
   // 批量下载
-  const handleBatchDownload = async () => {
+  const handleBatchDownload = useCallback(async () => {
     if (selectedRowKeys.length === 0) {
       message.warning('请选择要下载的文档');
       return;
@@ -167,7 +249,6 @@ export const KBDocumentManagePage: React.FC = () => {
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
 
-          // 添加小延迟避免浏览器阻止多个下载
           await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           console.error(`下载文档 ${doc.document.filename} 失败:`, error);
@@ -181,30 +262,28 @@ export const KBDocumentManagePage: React.FC = () => {
       message.destroy();
       message.error('批量下载失败');
     }
-  };
+  }, [selectedRowKeys, documentsData, kbId]);
 
-  // 处理批量摄取 - 在这里进行摄取条件判断
-  const handleBatchIngest = () => {
+  // 批量摄取处理
+  const handleBatchIngest = useCallback(() => {
     if (selectedRowKeys.length === 0) {
       message.warning('请选择要摄取的文档');
       return;
     }
 
-    // 过滤出可以摄取的文档（未摄取且未在处理中）
     const selectedDocs = documentsData?.documents?.filter(
       (doc: DocumentRecord) => selectedRowKeys.includes(doc.document_id)
     ) || [];
 
     const ingestableDocIds = selectedDocs
       .filter((doc: DocumentRecord) => {
-        const isProcessing = processingDocs.has(doc.document_id);
-        const isIngested = doc.chunk_count && doc.chunk_count > 0;
-        return !isProcessing && !isIngested;
+        const status = getDocumentStatus(doc);
+        return status === DocumentStatus.NOT_INGESTED;
       })
       .map((doc: DocumentRecord) => doc.document_id);
 
     if (ingestableDocIds.length === 0) {
-      message.warning('选中的文档中没有可以摄取的文档（未摄取且未在处理中）');
+      message.warning('选中的文档中没有可以摄取的文档');
       return;
     }
 
@@ -214,183 +293,50 @@ export const KBDocumentManagePage: React.FC = () => {
     }
 
     batchIngestMutation.mutate(ingestableDocIds);
-  };
+  }, [selectedRowKeys, documentsData, getDocumentStatus, batchIngestMutation]);
 
-  // // 获取文档列表
-  // const { data: documentsData, isLoading } = useQuery({
-  //   queryKey: ['documents', kbId],
-  //   queryFn: () => documentService.getDocuments(kbId!),
-  //   enabled: !!kbId,
-  // });
+  // 单个文档下载
+  const handleDownload = useCallback(async (documentId: string, filename: string) => {
+    try {
+      const blob = await documentService.downloadDocument(kbId!, documentId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      message.error('下载失败');
+    }
+  }, [kbId]);
 
-  // 上传文档
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => documentService.uploadDocument(kbId!, file),
-    onSuccess: () => {
-      message.success('文档上传成功');
-      setUploadModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-    },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || '上传失败');
-    },
-  });
-
-  // 删除文档
-  const deleteMutation = useMutation({
-    mutationFn: (documentId: string) => documentService.deleteDocument(kbId!, documentId),
-    onSuccess: (data, documentId) => {
-      message.success('文档删除成功');
-      queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-      // 清理已删除文档的选择状态
-      setSelectedRowKeys(prev => prev.filter(id => id !== documentId));
-    },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || '删除失败');
-    },
-  });
-
-  // 摄取文档
-  const ingestMutation = useMutation({
-    mutationFn: (documentId: string) => ingestionService.startIngestion(kbId!, documentId),
-    onSuccess: (data, documentId) => {
-      message.success('摄取任务已启动');
-      setProcessingDocs(prev => new Set([...prev, documentId]));
-      // 可以启动轮询检查任务状态
-      pollJobStatus(data.id, documentId);
-    },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || '摄取启动失败');
-    },
-  });
-
-  // 轮询任务状态
-  const pollJobStatus = (jobId: string, documentId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const job = await ingestionService.getJobStatus(jobId);
-        if (job.status === 'completed' || job.status === 'failed') {
-          clearInterval(interval);
-          setProcessingDocs(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(documentId);
-            return newSet;
-          });
-          if (job.status === 'completed') {
-            message.success('文档摄取完成');
-            queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-          } else {
-            message.error('文档摄取失败');
-          }
-        }
-      } catch (error) {
-        clearInterval(interval);
-        setProcessingDocs(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(documentId);
-          return newSet;
-        });
-      }
-    }, 2000);
-  };
-
-  const handleDownload = (documentId: string, filename: string) => {
-    documentService.downloadDocument(kbId!, documentId)
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      })
-      .catch(error => {
-        message.error('下载失败');
-      });
-  };
-
+  // 上传配置
   const uploadProps: UploadProps = {
     multiple: true,
     beforeUpload: (file) => {
-      // 允许的 MIME 类型
-      const allowedMimeTypes = [
-        'application/pdf',
-        'text/plain',
-        'text/markdown',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-        'application/msword', // .doc
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-        'image/png',
-        'image/jpeg',
-        'image/jpg'
-      ];
-
-      // 允许的文件扩展名（用于补充 MIME 类型不准确的情况）
-      const allowedExtensions = [
-        'pdf',
-        'txt',
-        'md',
-        'docx',
-        'doc',
-        'pptx',
-        'xlsx',
-        'py',
-        'js',
-        'ts',
-        'java',
-        'c',
-        'cpp',
-        'png',
-        'jpg',
-        'jpeg'
-      ];
-
-      // 获取文件扩展名
-      const filename = file.name.toLowerCase();
-      const fileExtension = filename.slice(((filename.lastIndexOf(".") - 1) >>> 0) + 2);
-
-      // 检查文件类型（MIME 或 扩展名）
-      const isValidType = allowedMimeTypes.includes(file.type) || allowedExtensions.includes(fileExtension);
-
-      if (!isValidType) {
-        message.error('支持的文件格式：PDF、TXT、MD、DOC、DOCX、PPTX、图片(PNG/JPG)及代码文件');
+      // 验证文件类型
+      const typeValidation = documentService.validateFileType(file);
+      if (!typeValidation.isValid) {
+        message.error(typeValidation.error);
         return false;
       }
 
-      const isLt10M = file.size / 1024 / 1024 < 10;
-      if (!isLt10M) {
-        message.error('文件大小不能超过 10MB');
+      // 验证文件大小
+      const sizeValidation = documentService.validateFileSize(file);
+      if (!sizeValidation.isValid) {
+        message.error(sizeValidation.error);
         return false;
       }
 
       uploadMutation.mutate(file);
-      return false; // 阻止 Ant Design 自动上传
+      return false;
     },
     showUploadList: false,
   };
 
-  // 批量摄取
-  const batchIngestMutation = useMutation({
-    mutationFn: async (documentIds: string[]) => {
-      const promises = documentIds.map(id => ingestionService.startIngestion(kbId!, id));
-      return Promise.all(promises);
-    },
-    onSuccess: (results, documentIds) => {
-      message.success(`已启动 ${documentIds.length} 个文档的摄取任务`);
-      setProcessingDocs(prev => new Set([...prev, ...documentIds]));
-      // 启动轮询检查任务状态
-      results.forEach((result, index) => {
-        pollJobStatus(result.id, documentIds[index]);
-      });
-      setSelectedRowKeys([]);
-    },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || '批量摄取启动失败');
-    },
-  });
-
+  // 表格列定义
   const columns = [
     {
       title: (
@@ -423,11 +369,11 @@ export const KBDocumentManagePage: React.FC = () => {
       dataIndex: ['document', 'filename'],
       key: 'filename',
       render: (filename: string, record: DocumentRecord) => {
-        const isOutdated = isDocumentOutdated(record, kbDetail?.last_tag_directory_update_time);
+        const status = getDocumentStatus(record);
         return (
           <div className="flex items-center">
             <span>{filename}</span>
-            {isOutdated && (
+            {status === DocumentStatus.OUTDATED && (
               <Tag icon={<ClockCircleOutlined />} color="orange" className="ml-2">
                 标签过时
               </Tag>
@@ -445,7 +391,7 @@ export const KBDocumentManagePage: React.FC = () => {
       title: '文件大小',
       dataIndex: ['document', 'file_size'],
       key: 'file_size',
-      render: (size: number) => `${(size / 1024).toFixed(2)} KB`,
+      render: (size: number) => documentService.formatFileSize(size),
     },
     {
       title: '上传者',
@@ -470,35 +416,38 @@ export const KBDocumentManagePage: React.FC = () => {
       title: '状态',
       key: 'status',
       render: (_: any, record: DocumentRecord) => {
-        const isProcessing = processingDocs.has(record.document_id);
-        const isIngested = record.chunk_count && record.chunk_count > 0;
-        const isOutdated = isDocumentOutdated(record, kbDetail?.last_tag_directory_update_time);
+        const status = getDocumentStatus(record);
 
-        if (isProcessing) {
-          return (
-            <Tag icon={<LoadingOutlined />} color="processing">
-              摄取中
-            </Tag>
-          );
-        } else if (isIngested) {
-          return (
-            <Space>
+        switch (status) {
+          case DocumentStatus.INGESTING:
+            return (
+              <Tag icon={<LoadingOutlined />} color="processing">
+                摄取中
+              </Tag>
+            );
+          case DocumentStatus.INGESTED:
+            return (
               <Tag color="success">
                 已摄取 ({record.chunk_count} 块)
               </Tag>
-              {isOutdated && (
+            );
+          case DocumentStatus.OUTDATED:
+            return (
+              <Space>
+                <Tag color="success">
+                  已摄取 ({record.chunk_count} 块)
+                </Tag>
                 <Tag icon={<ExclamationCircleOutlined />} color="warning">
                   需要重新摄取
                 </Tag>
-              )}
-            </Space>
-          );
-        } else {
-          return (
-            <Tag color="default">
-              未摄取
-            </Tag>
-          );
+              </Space>
+            );
+          default:
+            return (
+              <Tag color="default">
+                未摄取
+              </Tag>
+            );
         }
       },
     },
@@ -506,8 +455,10 @@ export const KBDocumentManagePage: React.FC = () => {
       title: '操作',
       key: 'actions',
       render: (_: any, record: DocumentRecord) => {
-        const isProcessing = processingDocs.has(record.document_id);
-        const isIngested = record.chunk_count && record.chunk_count > 0;
+        const status = getDocumentStatus(record);
+        const isProcessing = status === DocumentStatus.INGESTING;
+        const canIngest = status === DocumentStatus.NOT_INGESTED;
+        const canReIngest = status === DocumentStatus.OUTDATED;
 
         return (
           <Space>
@@ -515,7 +466,6 @@ export const KBDocumentManagePage: React.FC = () => {
               size="small"
               icon={<EyeOutlined />}
               onClick={() => {
-                // 预览功能，可以后续实现
                 message.info('预览功能待实现');
               }}
             >
@@ -528,15 +478,29 @@ export const KBDocumentManagePage: React.FC = () => {
             >
               下载
             </Button>
-            <Button
-              size="small"
-              icon={isProcessing ? <LoadingOutlined /> : <PlayCircleOutlined />}
-              onClick={() => ingestMutation.mutate(record.document_id)}
-              disabled={isProcessing || ingestMutation.isPending || !!isIngested}
-              className={isProcessing || isIngested ? 'text-gray-400' : ''}
-            >
-              摄取
-            </Button>
+            {canIngest && (
+              <Button
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => ingestMutation.mutate(record.document_id)}
+                disabled={ingestMutation.isPending}
+              >
+                摄取
+              </Button>
+            )}
+            {canReIngest && (
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  // 这里可以调用重新摄取的API
+                  ingestMutation.mutate(record.document_id);
+                }}
+                disabled={ingestMutation.isPending}
+              >
+                重新摄取
+              </Button>
+            )}
             <Popconfirm
               title="确定要删除这个文档吗？"
               onConfirm={() => deleteMutation.mutate(record.document_id)}
@@ -548,7 +512,6 @@ export const KBDocumentManagePage: React.FC = () => {
                 danger
                 icon={<DeleteOutlined />}
                 disabled={isProcessing}
-                className={isProcessing ? 'text-gray-400' : ''}
               >
                 删除
               </Button>
@@ -590,7 +553,7 @@ export const KBDocumentManagePage: React.FC = () => {
         </Space>
       </div>
 
-      {/* 新增：过时文档提醒 */}
+      {/* 过时文档提醒 */}
       {outdatedDocuments.length > 0 && (
         <Alert
           message="发现过时文档"
@@ -628,19 +591,20 @@ export const KBDocumentManagePage: React.FC = () => {
         }}
       />
 
+      {/* 上传模态框 */}
       <Modal
         title="上传文档"
         open={uploadModalVisible}
         onCancel={() => setUploadModalVisible(false)}
         footer={null}
       >
-        <Upload.Dragger {...uploadProps} className="mb-4">
+        <Upload.Dragger {...uploadProps}>
           <p className="ant-upload-drag-icon">
             <UploadOutlined />
           </p>
           <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
           <p className="ant-upload-hint">
-            支持 PDF、TXT、MD、DOC、DOCX 格式，文件大小不超过 10MB
+            支持单个或批量上传。支持的文件格式：PDF、TXT、MD、DOC、DOCX、PPTX、图片(PNG/JPG)及代码文件
           </p>
         </Upload.Dragger>
       </Modal>

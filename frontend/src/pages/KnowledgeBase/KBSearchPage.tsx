@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { searchService } from '../../services/searchService';
 import { documentService } from '../../services/documentService';
 import { SearchResult, RecommendedTag, TagType, ActiveTag } from '../../types/search';
+import { DocumentRecord } from '../../types/document';
 import { QueryParser } from '../../utils/queryParser';
 
 const { Search } = Input;
@@ -45,9 +46,9 @@ export const KBSearchPage: React.FC = () => {
         documentIds.map(id => documentService.getDocument(kbId!, id))
       );
       return docs.reduce((acc, doc) => {
-        acc[doc.id] = doc;
+        acc[doc.document_id] = doc;
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, DocumentRecord>);
     },
     enabled: documentIds.length > 0,
   });
@@ -290,7 +291,7 @@ EIG分数越低（越接近0），标签质量越高。`;
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center text-sm text-gray-500">
                             <FileTextOutlined className="mr-1" />
-                            <span>{document?.filename || result.document_id}</span>
+                            <span>{document?.document?.filename || result.document_id}</span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <Button
@@ -306,7 +307,7 @@ EIG分数越低（越接近0），标签质量越高。`;
                                 type="text"
                                 size="small"
                                 icon={<DownloadOutlined />}
-                                onClick={() => handleDownload(result.document_id, document.filename)}
+                                onClick={() => handleDownload(result.document_id, document.document.filename)}
                               >
                                 下载
                               </Button>

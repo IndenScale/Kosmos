@@ -4,7 +4,7 @@ import { PlusOutlined, DatabaseOutlined, FileTextOutlined, TagsOutlined, Setting
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
-import { KnowledgeBase, KBCreate } from '../../types/KnowledgeBase';
+import { KnowledgeBase, KBCreate } from '../../types/knowledgeBase';
 
 const { Title, Text, Paragraph } = Typography;
 
