@@ -2,10 +2,10 @@ from fastapi import Depends, HTTPException, status, Path
 from sqlalchemy.orm import Session
 from typing import List
 
-from db.database import get_db
-from models.user import User
-from models.knowledge_base import KBMember, KnowledgeBase, KBRole
-from dependencies.auth import get_current_user
+from app.db.database import get_db
+from app.models.user import User
+from app.models.knowledge_base import KBMember, KnowledgeBase, KBRole
+from app.dependencies.auth import get_current_user
 
 def get_kb_member_role(kb_id: str, user_id: str, db: Session) -> str:
     """获取用户在知识库中的角色"""

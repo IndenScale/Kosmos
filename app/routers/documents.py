@@ -3,12 +3,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 import os
-from db.database import get_db
-from models.user import User
-from schemas.document import DocumentResponse, KBDocumentResponse, DocumentListResponse
-from services.document_service import DocumentService
-from dependencies.auth import get_current_user
-from dependencies.kb_auth import get_kb_admin_or_owner, get_kb_member
+from app.db.database import get_db
+from app.models.user import User
+from app.schemas.document import DocumentResponse, KBDocumentResponse, DocumentListResponse
+from app.services.document_service import DocumentService
+from app.dependencies.auth import get_current_user
+from app.dependencies.kb_auth import get_kb_admin_or_owner, get_kb_member
 
 router = APIRouter(prefix="/api/v1/kbs", tags=["documents"])
 
@@ -50,8 +50,11 @@ def upload_document(
 
     doc_service = DocumentService(db)
     document = doc_service.upload_document(kb_id, current_user.id, file)
-
-    return DocumentResponse.from_orm(document)
+    
+    # 确保加载关联的物理文件信息
+    db.refresh(document)
+    
+    return DocumentResponse.model_validate(document)
 
 @router.get("/{kb_id}/documents", response_model=DocumentListResponse)
 def list_documents(
@@ -63,8 +66,8 @@ def list_documents(
     """列出知识库中的所有文档"""
     doc_service = DocumentService(db)
     documents_data = doc_service.get_kb_documents_with_chunk_count(kb_id)
-    
-    documents = [KBDocumentResponse(**doc_data) for doc_data in documents_data]
+
+    documents = [KBDocumentResponse.model_validate(doc_data) for doc_data in documents_data]
 
     return DocumentListResponse(
         documents=documents,

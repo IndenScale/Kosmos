@@ -36,10 +36,10 @@ class KBResponse(BaseModel):
     name: str
     description: Optional[str]
     owner_id: str
-    tag_dictionary: Dict[str, Any]  # 移除默认值
-    # tag_dictionary:str
-    milvus_collection_id: Optional[str] = None  # 新增字段
+    tag_dictionary: Dict[str, Any]
+    milvus_collection_id: Optional[str] = None
     is_public: bool
+    last_tag_directory_update_time: Optional[datetime] = None  # 添加这个字段
     created_at: datetime
 
     class Config:

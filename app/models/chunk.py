@@ -1,3 +1,6 @@
+# app/models/chunk.py
+import sys
+print(f"DEBUG: module {__name__} is being loaded. sys.modules['{__name__}'] is: {sys.modules.get(__name__)}")
 from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -5,7 +8,7 @@ from app.db.database import Base
 class Chunk(Base):
     """文档片段表"""
     __tablename__ = "chunks"
-
+    __table_args__ = {'extend_existing': True}
     id = Column(String, primary_key=True)  # UUID
     kb_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)
@@ -17,7 +20,7 @@ class Chunk(Base):
 class IngestionJob(Base):
     """摄入任务表"""
     __tablename__ = "ingestion_jobs"
-
+    __table_args__ = {'extend_existing': True}
     id = Column(String, primary_key=True)  # UUID
     kb_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)

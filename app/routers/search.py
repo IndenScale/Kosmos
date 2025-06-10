@@ -1,12 +1,13 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
-from db.database import get_db
-from dependencies.auth import get_current_user
-from dependencies.kb_auth import get_kb_or_public
-from services.search_service import SearchService
-from schemas.search import SearchQuery, SearchResponse, ChunkResponse
-from models.user import User
-from typing import Optional
+from app.db.database import get_db
+from app.dependencies.auth import get_current_user
+from app.dependencies.kb_auth import get_kb_or_public
+from app.services.search_service import SearchService
+from app.schemas.search import SearchQuery, SearchResponse, ChunkResponse
+from app.models.user import User
+
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
@@ -19,14 +20,14 @@ def get_chunk(
     """根据ID获取chunk"""
     search_service = SearchService(db)
     chunk = search_service.get_chunk_by_id(chunk_id)
-    
+
     if not chunk:
         raise HTTPException(status_code=404, detail="Chunk不存在")
-    
+
     # 解析tags
     import json
     tags = json.loads(chunk.tags) if chunk.tags else []
-    
+
     return ChunkResponse(
         id=chunk.id,
         kb_id=chunk.kb_id,
@@ -46,7 +47,7 @@ def search_knowledge_base(
 ):
     """在指定知识库中执行语义搜索"""
     search_service = SearchService(db)
-    
+
     try:
         results = search_service.search(kb_id, query.query, query.top_k)
         return SearchResponse(**results)

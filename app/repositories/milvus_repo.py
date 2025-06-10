@@ -153,3 +153,37 @@ class MilvusRepository:
             utility.drop_collection(collection_name)
             return True
         return False
+
+    def delete_chunk_by_id(self, kb_id: str, chunk_id: str) -> bool:
+        """根据chunk_id删除向量"""
+        try:
+            collection = self.get_collection(kb_id)
+            
+            # 构建删除表达式
+            delete_expr = f'chunk_id == "{chunk_id}"'
+            
+            # 执行删除
+            collection.delete(delete_expr)
+            collection.flush()
+            
+            return True
+        except Exception as e:
+            print(f"删除chunk {chunk_id} 失败: {e}")
+            return False
+
+    def delete_vectors_by_document(self, kb_id: str, document_id: str) -> bool:
+        """根据document_id删除所有相关向量"""
+        try:
+            collection = self.get_collection(kb_id)
+            
+            # 构建删除表达式 - 删除所有属于该document的chunks
+            delete_expr = f'document_id == "{document_id}"'
+            
+            # 执行删除
+            collection.delete(delete_expr)
+            collection.flush()
+            
+            return True
+        except Exception as e:
+            print(f"删除document {document_id} 的向量失败: {e}")
+            return False

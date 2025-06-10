@@ -1,27 +1,31 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import create_tables
 from app.routers import auth, knowledge_bases, documents, ingestion, search
 
 from app.db.database import Base
-# import app.models.user
-# import app.models.knowledge_base
-# import app.models.document
-# import app.models.chunk
+import app.models.user
+import app.models.knowledge_base
+import app.models.document
+import app.models.chunk
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("应用启动，开始创建数据库表...")
+    create_tables()
+    print("数据库表检查/创建完成。")
+    yield
 
 # 创建FastAPI应用
 app = FastAPI(
     title="Kosmos API",
     description="Knowledge Management System API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
-
-# 使用 on_event 装饰器注册启动事件
-@app.on_event("startup")
-def on_startup():
-    print("应用启动，开始创建数据库表...")
-    create_tables()
-    print("数据库表检查/创建完成。")
 
 # 添加CORS中间件
 app.add_middleware(

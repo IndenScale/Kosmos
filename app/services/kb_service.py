@@ -4,10 +4,10 @@ from fastapi import HTTPException, status
 from typing import List, Optional, Dict, Any
 import json
 
-from models.knowledge_base import KnowledgeBase, KBMember, KBRole
-from models.user import User
-from schemas.knowledge_base import KBCreate, KBUpdate, KBMemberAdd, TagDictionaryUpdate
-from repositories.milvus_repo import MilvusRepository
+from app.models.knowledge_base import KnowledgeBase, KBMember, KBRole
+from app.models.user import User
+from app.schemas.knowledge_base import KBCreate, KBUpdate, KBMemberAdd, TagDictionaryUpdate
+from app.repositories.milvus_repo import MilvusRepository
 
 class KBService:
     def __init__(self, db: Session):
@@ -191,7 +191,6 @@ class KBService:
             )
 
         if tag_data.tag_dictionary:
-            # 直接设置字典，让SQLAlchemy的类型转换器处理
             kb.tag_dictionary = tag_data.tag_dictionary
         else:
             # TODO: 使用LLM生成标签字典
@@ -209,9 +208,32 @@ class KBService:
             # 直接设置字典，让SQLAlchemy的类型转换器处理
             kb.tag_dictionary = sample_dict
 
+        # 记录标签字典更新时间
+        from sqlalchemy.sql import func
+        kb.last_tag_directory_update_time = func.now()
+
         self.db.commit()
         self.db.refresh(kb)
         return kb
+
+    def get_outdated_documents(self, kb_id: str) -> List[dict]:
+        """获取标签可能过时的文档列表"""
+        from repositories.chunk_repo import ChunkRepository
+        chunk_repo = ChunkRepository(self.db)
+
+        outdated_chunks = chunk_repo.get_outdated_chunks(kb_id)
+
+        # 按文档分组统计
+        doc_stats = {}
+        for chunk in outdated_chunks:
+            if chunk.document_id not in doc_stats:
+                doc_stats[chunk.document_id] = {
+                    'document_id': chunk.document_id,
+                    'outdated_chunk_count': 0
+                }
+            doc_stats[chunk.document_id]['outdated_chunk_count'] += 1
+
+        return list(doc_stats.values())
 
     def get_member_role(self, kb_id: str, user_id: str) -> Optional[str]:
         """获取用户在知识库中的角色"""

@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Button, Upload, Modal, message, Space, Tag, Popconfirm, Checkbox } from 'antd';
-import { UploadOutlined, DownloadOutlined, DeleteOutlined, EyeOutlined, PlayCircleOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Table, Button, Upload, Modal, message, Space, Tag, Popconfirm, Checkbox, Alert } from 'antd';
+import { UploadOutlined, DownloadOutlined, DeleteOutlined, EyeOutlined, PlayCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentService } from '../../services/documentService';
 import { ingestionService } from '../../services/ingestionService';
+import { KnowledgeBaseService } from '../../services/KnowledgeBase';
+import { DocumentRecord as  ImportedDocumentRecord} from '../../types/KnowledgeBase';
 import type { UploadProps } from 'antd';
 
 interface DocumentRecord {
@@ -33,6 +35,14 @@ enum SelectionState {
   ALL = 'all'          // 全部选择
 }
 
+// 辅助函数：判断文档是否过时
+const isDocumentOutdated = (document: ImportedDocumentRecord, kbLastTagUpdate?: string): boolean => {
+  if (!document.last_ingest_time || !kbLastTagUpdate) {
+    return false;
+  }
+  return new Date(document.last_ingest_time) < new Date(kbLastTagUpdate);
+};
+
 export const KBDocumentManagePage: React.FC = () => {
   const { kbId } = useParams<{ kbId: string }>();
   const queryClient = useQueryClient();
@@ -40,10 +50,12 @@ export const KBDocumentManagePage: React.FC = () => {
   const [processingDocs, setProcessingDocs] = useState<Set<string>>(new Set());
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
-  // 移除 isDocumentSelectable 函数，所有文档都可以被选中
-  // const isDocumentSelectable = (record: DocumentRecord) => {
-  //   return (record.chunk_count === 0 || record.chunk_count === undefined) && !processingDocs.has(record.document_id);
-  // };
+  // 获取知识库详情（用于获取标签字典更新时间）
+  const { data: kbDetail } = useQuery({
+    queryKey: ['KnowledgeBase', kbId],
+    queryFn: () => KnowledgeBaseService.getKBDetail(kbId!),
+    enabled: !!kbId,
+  });
 
   // 获取文档列表
   const { data: documentsData, isLoading } = useQuery({
@@ -51,6 +63,16 @@ export const KBDocumentManagePage: React.FC = () => {
     queryFn: () => documentService.getDocuments(kbId!),
     enabled: !!kbId,
   });
+
+  // 计算过时文档数量
+  const outdatedDocuments = useMemo(() => {
+    if (!documentsData?.documents || !kbDetail?.last_tag_directory_update_time) {
+      return [];
+    }
+    return documentsData.documents.filter((doc: DocumentRecord) =>
+      isDocumentOutdated(doc, kbDetail.last_tag_directory_update_time)
+    );
+  }, [documentsData, kbDetail]);
 
   // 计算当前选择状态
   const selectionState = useMemo(() => {
@@ -371,7 +393,6 @@ export const KBDocumentManagePage: React.FC = () => {
       render: (_: any, record: DocumentRecord) => (
         <Checkbox
           checked={selectedRowKeys.includes(record.document_id)}
-          // 移除 disabled 属性，所有文档都可以被选中
           onChange={(e) => {
             if (e.target.checked) {
               setSelectedRowKeys([...selectedRowKeys, record.document_id]);
@@ -386,6 +407,19 @@ export const KBDocumentManagePage: React.FC = () => {
       title: '文件名',
       dataIndex: ['document', 'filename'],
       key: 'filename',
+      render: (filename: string, record: DocumentRecord) => {
+        const isOutdated = isDocumentOutdated(record, kbDetail?.last_tag_directory_update_time);
+        return (
+          <div className="flex items-center">
+            <span>{filename}</span>
+            {isOutdated && (
+              <Tag icon={<ClockCircleOutlined />} color="orange" className="ml-2">
+                标签过时
+              </Tag>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '文件类型',
@@ -412,11 +446,18 @@ export const KBDocumentManagePage: React.FC = () => {
       render: (date: string) => new Date(date).toLocaleString(),
     },
     {
+      title: '最后摄入时间',
+      dataIndex: 'last_ingest_time',
+      key: 'last_ingest_time',
+      render: (date: string) => date ? new Date(date).toLocaleString() : '未摄入',
+    },
+    {
       title: '状态',
       key: 'status',
       render: (_: any, record: DocumentRecord) => {
         const isProcessing = processingDocs.has(record.document_id);
         const isIngested = record.chunk_count && record.chunk_count > 0;
+        const isOutdated = isDocumentOutdated(record, kbDetail?.last_tag_directory_update_time);
 
         if (isProcessing) {
           return (
@@ -426,9 +467,16 @@ export const KBDocumentManagePage: React.FC = () => {
           );
         } else if (isIngested) {
           return (
-            <Tag color="success">
-              已摄取 ({record.chunk_count} 块)
-            </Tag>
+            <Space>
+              <Tag color="success">
+                已摄取 ({record.chunk_count} 块)
+              </Tag>
+              {isOutdated && (
+                <Tag icon={<ExclamationCircleOutlined />} color="warning">
+                  需要重新摄取
+                </Tag>
+              )}
+            </Space>
           );
         } else {
           return (
@@ -526,6 +574,31 @@ export const KBDocumentManagePage: React.FC = () => {
           </Button>
         </Space>
       </div>
+
+      {/* 新增：过时文档提醒 */}
+      {outdatedDocuments.length > 0 && (
+        <Alert
+          message="发现过时文档"
+          description={`有 ${outdatedDocuments.length} 个文档的标签可能已过时，建议重新摄取以获得最新的标签信息。`}
+          type="warning"
+          showIcon
+          icon={<ClockCircleOutlined />}
+          className="mb-4"
+          action={
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => {
+                const outdatedIds = outdatedDocuments.map((doc: DocumentRecord) => doc.document_id);
+                setSelectedRowKeys(outdatedIds);
+                message.info(`已选择 ${outdatedIds.length} 个过时文档`);
+              }}
+            >
+              选择过时文档
+            </Button>
+          }
+        />
+      )}
 
       <Table
         columns={columns}

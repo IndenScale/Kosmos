@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from db.database import get_db
-from models.user import User
+from app.db.database import get_db
+from app.models.user import User
 
 # 密码加密上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -50,7 +50,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception

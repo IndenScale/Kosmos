@@ -3,15 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List
 import json
 
-from db.database import get_db
-from models.user import User
-from schemas.knowledge_base import (
+from app.db.database import get_db
+from app.models.user import User
+from app.schemas.knowledge_base import (
     KBCreate, KBUpdate, KBResponse, KBDetailResponse,
     KBMemberAdd, KBMemberResponse, TagDictionaryUpdate
 )
-from services.kb_service import KBService
-from dependencies.auth import get_current_user
-from dependencies.kb_auth import (
+from app.services.kb_service import KBService
+from app.dependencies.auth import get_current_user
+from app.dependencies.kb_auth import (
     get_kb_member, get_kb_admin_or_owner, get_kb_owner, get_kb_or_public
 )
 
@@ -215,3 +215,48 @@ def remove_knowledge_base_member(
     """移除知识库成员"""
     kb_service = KBService(db)
     kb_service.remove_member(kb_id, user_id)
+
+
+@router.get("/{kb_id}/stats")
+def get_knowledge_base_stats(
+    kb_id: str = Path(...),
+    current_user: User = Depends(get_kb_or_public),
+    db: Session = Depends(get_db)
+):
+    """获取知识库统计信息"""
+    kb_service = KBService(db)
+    kb = kb_service.get_kb_by_id(kb_id)
+    
+    if not kb:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Knowledge base not found"
+        )
+    
+    # 获取文档和chunk统计
+    from app.repositories.document_repo import DocumentRepository
+    from app.repositories.chunk_repo import ChunkRepository
+    
+    doc_repo = DocumentRepository(db)
+    chunk_repo = ChunkRepository(db)
+    
+    document_count = len(doc_repo.get_documents_by_kb(kb_id))
+    chunk_count = len(chunk_repo.get_chunks_by_kb(kb_id))
+    
+    # 获取顶级标签
+    top_level_tags = []
+    if kb.tag_dictionary:
+        if isinstance(kb.tag_dictionary, dict):
+            top_level_tags = list(kb.tag_dictionary.keys())[:10]  # 取前10个
+        elif isinstance(kb.tag_dictionary, str):
+            try:
+                tag_dict = json.loads(kb.tag_dictionary)
+                top_level_tags = list(tag_dict.keys())[:10]
+            except (json.JSONDecodeError, TypeError):
+                top_level_tags = []
+    
+    return {
+        "document_count": document_count,
+        "chunk_count": chunk_count,
+        "top_level_tags": top_level_tags
+    }

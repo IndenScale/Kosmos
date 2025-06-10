@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from models.document import Document, KBDocument
+from app.models.document import Document, KBDocument
 from typing import List, Optional
 import mimetypes
 
@@ -122,11 +122,11 @@ class DocumentService:
 class DocumentRepository:
     def __init__(self, db: Session):
         self.db = db
-    
+
     def get_document_by_id(self, doc_id: str) -> Optional[Document]:
         """根据ID获取文档"""
         return self.db.query(Document).filter(Document.id == doc_id).first()
-    
+
     def create_document(self, doc_data: dict) -> Document:
         """创建新文档记录"""
         document = Document(**doc_data)
@@ -134,7 +134,7 @@ class DocumentRepository:
         self.db.commit()
         self.db.refresh(document)
         return document
-    
+
     def link_document_to_kb(self, kb_id: str, document_id: str, uploaded_by: str) -> KBDocument:
         """将文档关联到知识库"""
         kb_doc = KBDocument(
@@ -146,17 +146,17 @@ class DocumentRepository:
         self.db.commit()
         self.db.refresh(kb_doc)
         return kb_doc
-    
+
     def get_kb_documents(self, kb_id: str) -> List[KBDocument]:
         """获取知识库中的所有文档"""
         return self.db.query(KBDocument).filter(KBDocument.kb_id == kb_id).all()
-    
+
     def get_kb_document(self, kb_id: str, document_id: str) -> Optional[KBDocument]:
         """获取知识库中的特定文档"""
         return self.db.query(KBDocument).filter(
             and_(KBDocument.kb_id == kb_id, KBDocument.document_id == document_id)
         ).first()
-    
+
     def remove_document_from_kb(self, kb_id: str, document_id: str) -> bool:
         """从知识库中移除文档"""
         kb_doc = self.get_kb_document(kb_id, document_id)
@@ -165,7 +165,7 @@ class DocumentRepository:
             self.db.commit()
             return True
         return False
-    
+
     def is_document_referenced(self, document_id: str) -> bool:
         """检查文档是否还被其他知识库引用"""
         count = self.db.query(KBDocument).filter(KBDocument.document_id == document_id).count()

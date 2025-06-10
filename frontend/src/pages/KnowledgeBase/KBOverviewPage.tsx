@@ -567,6 +567,19 @@ export const KBOverviewPage: React.FC = () => {
           >
             {!isEditingTags ? (
               <div>
+                {/* 新增：显示标签字典最后更新时间 */}
+                {kbDetail?.last_tag_directory_update_time && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center text-sm text-blue-600">
+                      <InfoCircleOutlined className="mr-2" />
+                      <span>
+                        标签字典最后更新时间：
+                        {new Date(kbDetail.last_tag_directory_update_time).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {Object.keys(displayTagDict).length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
                     <TagsOutlined className="text-4xl mb-4" />

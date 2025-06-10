@@ -1,19 +1,20 @@
-import uuid
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 import json
 import asyncio
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
 from pathlib import Path
+import uuid
 
-from models.chunk import Chunk, IngestionJob
-from models.document import Document
-from models.knowledge_base import KnowledgeBase
-from processors.processor_factory import ProcessorFactory
-from utils.ai_utils import AIUtils
-from utils.text_splitter import TextSplitter
-from repositories.document_repo import DocumentRepository
-from repositories.milvus_repo import MilvusRepository
-from services.kb_service import KBService
+from app.models.chunk import Chunk, IngestionJob
+from app.models.document import Document
+from app.models.knowledge_base import KnowledgeBase
+from app.processors.processor_factory import ProcessorFactory
+from app.utils.ai_utils import AIUtils
+from app.utils.text_splitter import TextSplitter
+from app.repositories.document_repo import DocumentRepository
+from app.repositories.milvus_repo import MilvusRepository
+from app.services.kb_service import KBService
 
 class IngestionService:
     """文档摄入服务 - v1版本（同步实现）"""
@@ -52,35 +53,44 @@ class IngestionService:
             raise e
 
     def _run_pipeline(self, job_id: str, kb_id: str, document_id: str):
-        """执行摄入流水线"""
-        # 更新任务状态
+
         job = self.db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
         job.status = "processing"
         self.db.commit()
+        """执行摄取流水线"""
+        kb_id = job.kb_id
+        document_id = job.document_id
 
         try:
-            # 1. 获取文档路径
-            document = self.doc_repo.get_document_by_id(document_id)
+            # 1. 获取文档路径（预加载物理文件信息）
+            document = self.db.query(Document).options(
+                joinedload(Document.physical_file)
+            ).filter(Document.id == document_id).first()
+
             if not document:
                 raise Exception(f"文档不存在: {document_id}")
+
+            if not document.physical_file:
+                raise Exception(f"文档对应的物理文件不存在: {document_id}")
 
             # 2. 获取知识库的标签字典
             kb = self.kb_service.get_kb_by_id(kb_id)
             if not kb:
                 raise Exception(f"知识库不存在: {kb_id}")
 
-            # tag_directory = json.loads(kb.tag_dictionary) if kb.tag_dictionary else {}
             tag_directory = kb.tag_dictionary
+
             # 3. 确保Milvus Collection存在
             collection_name = self._ensure_milvus_collection(kb)
 
-            # 4. 选择合适的处理器
-            processor = self.processor_factory.get_processor(document.file_path)
+            # 4. 选择合适的处理器（使用物理文件路径）
+            file_path = document.physical_file.file_path
+            processor = self.processor_factory.get_processor(file_path)
             if not processor:
-                raise Exception(f"不支持的文件类型: {document.file_path}")
+                raise Exception(f"不支持的文件类型: {file_path}")
 
             # 5. 提取文档内容
-            markdown_text, image_paths = processor.extract_content(document.file_path)
+            markdown_text, image_paths = processor.extract_content(file_path)
 
             # 6. 处理图片描述
             if image_paths:
@@ -128,7 +138,18 @@ class IngestionService:
             if milvus_data:
                 self.milvus_repo.insert_chunks(kb_id, milvus_data)
 
-            # 11. 更新任务状态
+            # 11. 更新KBDocument的最后摄取时间
+            from app.models.document import KBDocument
+            kb_document = self.db.query(KBDocument).filter(
+                KBDocument.kb_id == kb_id,
+                KBDocument.document_id == document_id
+            ).first()
+
+            if kb_document:
+                kb_document.last_ingest_time = func.now()
+                self.db.commit()
+
+            # 12. 更新任务状态
             job.status = "completed"
             self.db.commit()
 

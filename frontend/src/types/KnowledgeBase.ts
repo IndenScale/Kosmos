@@ -38,6 +38,7 @@ export interface KnowledgeBase {
   milvus_collection_id?: string;
   is_public: boolean;
   created_at: string;
+  last_tag_directory_update_time?: string; // 新增：标签字典最后更新时间
 }
 
 export interface KBDetail extends KnowledgeBase {
@@ -49,4 +50,24 @@ export interface KBStats {
   document_count: number;
   chunk_count: number;
   top_level_tags: string[];
+}
+
+// 新增：文档记录接口，包含摄入时间
+export interface DocumentRecord {
+  document_id: string;
+  kb_id: string;
+  uploaded_by: string;
+  upload_at: string;
+  last_ingest_time?: string; // 新增：最后摄入时间
+  chunk_count?: number;
+  document: {
+    id: string;
+    filename: string;
+    file_type: string;
+    file_size: number;
+    file_path: string;
+    created_at: string;
+  };
+  uploader_username?: string;
+  is_outdated?: boolean; // 新增：是否过时标记
 }

@@ -10,6 +10,7 @@ python-dotenv
 openai
 typing
 pydantic
+pydantic[email]
 pydantic_settings
 python-multipart
 pymilvus

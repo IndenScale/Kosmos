@@ -1,6 +1,6 @@
 // src/services/documentService.ts
 import apiClient from './apiClient';
-
+import { API_BASE_URL } from './config';
 export const documentService = {
   // 获取文档列表
   getDocuments: async (kbId: string) => {
@@ -44,6 +44,12 @@ export const documentService = {
   // 删除文档
   deleteDocument: async (kbId: string, documentId: string) => {
     const response = await apiClient.delete(`/api/v1/kbs/${kbId}/documents/${documentId}`);
+    return response.data;
+  },
+
+  // 新增：获取过时文档列表
+  getOutdatedDocuments: async (kbId: string) => {
+    const response = await apiClient.get(`/api/v1/kbs/${kbId}/documents/outdated`);
     return response.data;
   },
 };
