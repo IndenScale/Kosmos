@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from fastapi import HTTPException, UploadFile
-from typing import List, Optional
+from typing import List, Dict, Optional
 import os
 from pathlib import Path
 import hashlib
@@ -241,7 +241,7 @@ class DocumentService:
     def remove_documents_from_kb(self, kb_id: str, document_ids: List[str]) -> Dict[str, bool]:
         """批量从知识库中移除文档"""
         results = {}
-        
+
         for document_id in document_ids:
             try:
                 success = self.remove_document_from_kb(kb_id, document_id)
@@ -250,7 +250,7 @@ class DocumentService:
                 import logging
                 logging.error(f"删除文档 {document_id} 失败: {str(e)}")
                 results[document_id] = False
-        
+
         return results
 
     def get_kb_document_count(self, kb_id: str) -> int:

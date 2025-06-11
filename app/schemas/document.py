@@ -1,6 +1,6 @@
 from pydantic import BaseModel, computed_field
 from datetime import datetime
-from typing import Optional
+from typing import List, Dict, Optional
 
 class DocumentBase(BaseModel):
     filename: str
