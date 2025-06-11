@@ -339,17 +339,15 @@ export const KBDocumentManagePage: React.FC = () => {
   const uploadProps: UploadProps = {
     name: 'files',
     multiple: true,
-    action: `/api/v1/kbs/${kbId}/documents/upload`,
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-    },
-    onChange(info) {
-      const { status } = info.file;
-      if (status === 'done') {
-        message.success(`${info.file.name} 文件上传成功`);
+    customRequest: async ({ file, onSuccess, onError }) => {
+      try {
+        const result = await documentService.uploadDocument(kbId!, file as File);
+        onSuccess?.(result);
+        message.success(`${(file as File).name} 文件上传成功`);
         queryClient.invalidateQueries({ queryKey: ['documents', kbId] });
-      } else if (status === 'error') {
-        message.error(`${info.file.name} 文件上传失败`);
+      } catch (error: any) {
+        onError?.(error);
+        message.error(`${(file as File).name} 文件上传失败`);
       }
     },
     showUploadList: false,

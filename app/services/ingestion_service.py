@@ -126,13 +126,13 @@ class IngestionService:
         if not processor:
             raise Exception(f"不支持的文件类型: {file_path}")
 
-        # 5. 提取文档内容
-        markdown_text, image_paths = processor.extract_content(file_path)
-
-        # 6. 处理图片描述
-        if image_paths:
-            markdown_text = self._process_images(markdown_text, image_paths)
-
+        # 5. 提取文档内容（processor现在返回完整的markdown）
+        markdown_text, _ = processor.extract_content(file_path)  # 忽略图片路径
+        
+        # 6. 移除图片处理步骤（已在processor中完成）
+        # if image_paths:
+        #     markdown_text = self._process_images(markdown_text, image_paths)
+        
         # 7. 分割文本
         chunk_texts = self.text_splitter.split_text(markdown_text)
 
@@ -196,24 +196,10 @@ class IngestionService:
             kb_document.last_ingest_time = func.now()
             db.commit()
 
-    def _process_images(self, markdown_text: str, image_paths: List[str]) -> str:
-        """处理图片，获取描述并嵌入markdown"""
-        for image_path in image_paths:
-            try:
-                # 获取图片描述
-                description = self.ai_utils.get_image_description(image_path)
-
-                # 替换占位符
-                placeholder = f"[图片描述占位符: {image_path}]"
-                if placeholder in markdown_text:
-                    markdown_text = markdown_text.replace(
-                        placeholder,
-                        f"\n\n**图片描述**: {description}\n"
-                    )
-            except Exception as e:
-                print(f"处理图片失败 {image_path}: {str(e)}")
-
-        return markdown_text
+    # 移除 _process_images 方法
+    # def _process_images(self, markdown_text: str, image_paths: List[str]) -> str:
+    #     """此方法不再需要"""
+    #     pass
 
     def get_job_status(self, job_id: str) -> Optional[IngestionJob]:
         """获取任务状态（结合队列状态）"""

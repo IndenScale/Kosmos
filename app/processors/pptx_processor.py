@@ -15,6 +15,7 @@ class PptxProcessor(BaseProcessor):
     """PPTX文档处理器"""
     
     def __init__(self):
+        super().__init__()
         self.supported_extensions = ['.pptx']
         self.temp_dir = Path("temp/pptx_processing")
         self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -24,7 +25,7 @@ class PptxProcessor(BaseProcessor):
         file_ext = Path(file_path).suffix.lower()
         return file_ext in self.supported_extensions
     
-    def extract_content(self, file_path: str) -> Tuple[str, List[str]]:
+    def _extract_content_impl(self, file_path: str) -> Tuple[str, List[str]]:
         """提取PPTX文档内容和图片，按页面分割"""
         try:
             # 创建临时目录
