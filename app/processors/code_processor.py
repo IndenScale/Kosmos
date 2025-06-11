@@ -1,4 +1,4 @@
-from abc import ABC
+import os
 from typing import Tuple, List, Dict, Any
 from pathlib import Path
 import re
@@ -8,6 +8,7 @@ class CodeProcessor(BaseProcessor):
     """代码文件处理器，支持多种编程语言的智能分割"""
     
     def __init__(self):
+        super().__init__()
         # 支持的代码文件扩展名
         self.supported_extensions = [
             '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.c', '.cpp', '.cc', '.cxx',
@@ -56,7 +57,7 @@ class CodeProcessor(BaseProcessor):
         file_ext = Path(file_path).suffix.lower()
         return file_ext in self.supported_extensions
     
-    def extract_content(self, file_path: str) -> Tuple[str, List[str]]:
+    def _extract_content_impl(self, file_path: str) -> Tuple[str, List[str]]:
         """提取代码文件内容"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
