@@ -1,4 +1,4 @@
-import { TagType, ActiveTag } from '../types/search';
+import { TagType, ActiveTag, ParsedQuery } from '../types/search';
 
 // 获取标签颜色
 export const getTagColor = (type: TagType): string => {
@@ -58,3 +58,116 @@ export const handleFileDownload = async (
     console.error('下载失败:', error);
   }
 };
+
+// 新的查询解析器类
+export class QueryParser {
+  /**
+   * 解析查询字符串
+   * 规则：当且仅当输入中带有标签标识符（+-~）同时前导为空格时会被视作标签分割记号
+   */
+  static parse(query: string): ParsedQuery {
+    if (!query.trim()) {
+      return {
+        text: '',
+        must_tags: [],
+        must_not_tags: [],
+        like_tags: []
+      };
+    }
+
+    const must_tags: string[] = [];
+    const must_not_tags: string[] = [];
+    const like_tags: string[] = [];
+    let text = '';
+    
+    // 使用正则表达式匹配空格后跟标识符的模式
+    // 匹配模式：空格 + 标识符(+/-/~) + 标签内容
+    const tagPattern = /\s([+~-])(\S+)/g;
+    let lastIndex = 0;
+    let match;
+    
+    // 提取所有标签
+    while ((match = tagPattern.exec(query)) !== null) {
+      const [fullMatch, operator, tag] = match;
+      const matchStart = match.index;
+      
+      // 如果这是第一个匹配，将之前的内容作为文本
+      if (lastIndex === 0 && matchStart > 0) {
+        text = query.substring(0, matchStart).trim();
+      }
+      
+      // 根据操作符分类标签
+      switch (operator) {
+        case '+':
+          must_tags.push(tag);
+          break;
+        case '-':
+          must_not_tags.push(tag);
+          break;
+        case '~':
+          like_tags.push(tag);
+          break;
+      }
+      
+      lastIndex = matchStart + fullMatch.length;
+    }
+    
+    // 如果没有找到任何标签，整个查询都是文本
+    if (lastIndex === 0) {
+      text = query.trim();
+    } else if (text === '') {
+      // 如果文本为空但有标签，取第一个标签之前的内容作为文本
+      const firstMatch = query.match(/\s[+~-]\S+/);
+      if (firstMatch) {
+        text = query.substring(0, firstMatch.index).trim();
+      }
+    }
+
+    return { text, must_tags, must_not_tags, like_tags };
+  }
+
+  /**
+   * 构建查询字符串
+   */
+  static buildQuery(text: string, activeTags: ActiveTag[]): string {
+    let query = text;
+    
+    activeTags.forEach(({ tag, type }) => {
+      switch (type) {
+        case TagType.LIKE:
+          query += ` ~${tag}`;
+          break;
+        case TagType.MUST:
+          query += ` +${tag}`;
+          break;
+        case TagType.MUST_NOT:
+          query += ` -${tag}`;
+          break;
+      }
+    });
+
+    return query.trim();
+  }
+
+  /**
+   * 从查询字符串中提取活动标签
+   */
+  static getActiveTagsFromQuery(query: string): ActiveTag[] {
+    const parsed = this.parse(query);
+    const activeTags: ActiveTag[] = [];
+
+    parsed.like_tags.forEach(tag => {
+      activeTags.push({ tag, type: TagType.LIKE });
+    });
+
+    parsed.must_tags.forEach(tag => {
+      activeTags.push({ tag, type: TagType.MUST });
+    });
+
+    parsed.must_not_tags.forEach(tag => {
+      activeTags.push({ tag, type: TagType.MUST_NOT });
+    });
+
+    return activeTags;
+  }
+}

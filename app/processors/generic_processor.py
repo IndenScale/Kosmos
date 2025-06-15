@@ -1,3 +1,4 @@
+import os
 from typing import Tuple, List
 from pathlib import Path
 from .base_processor import BaseProcessor
@@ -7,6 +8,7 @@ class GenericProcessor(BaseProcessor):
     """通用文档处理器，使用markitdown提供基线服务"""
     
     def __init__(self):
+        super().__init__()
         self.md = MarkItDown(enable_plugins=False)
         self.supported_extensions = [
             '.txt', '.pdf', '.xlsx', '.xls', '.pptx', '.ppt',
@@ -18,7 +20,7 @@ class GenericProcessor(BaseProcessor):
         file_ext = Path(file_path).suffix.lower()
         return file_ext in self.supported_extensions
     
-    def extract_content(self, file_path: str) -> Tuple[str, List[str]]:
+    def _extract_content_impl(self, file_path: str) -> Tuple[str, List[str]]:
         """提取文档内容"""
         try:
             result = self.md.convert(file_path)

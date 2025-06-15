@@ -7,11 +7,10 @@ import { searchService } from '../../services/searchService';
 import { documentService } from '../../services/documentService';
 import { SearchResult, TagType, ActiveTag } from '../../types/search';
 import { DocumentRecord } from '../../types/document';
-import { QueryParser } from '../../utils/queryParser';
+import { QueryParser, getTagColor, getResultTagColor, handleFileDownload } from '../../utils/searchUtils';
 import { SearchResultCard } from '../../components/SemanticSearch/SearchResultCard';
 import { RecommendedTags } from '../../components/SemanticSearch/RecommendedTags';
 import { ActiveTagsBar } from '../../components/SemanticSearch/ActiveTagsBar';
-import { getTagColor, getResultTagColor, handleFileDownload } from '../../utils/searchUtils';
 import { SearchPageState } from '../../types/search';
 
 const { Search } = Input;

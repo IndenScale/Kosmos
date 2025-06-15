@@ -13,7 +13,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # JWT 配置
 SECRET_KEY = "your-secret-key-here"  # 在生产环境中应该从环境变量读取
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24小时 = 1440分钟
 
 security = HTTPBearer()
 
