@@ -12,9 +12,18 @@ class LoggingConfig(BaseModel):
     max_bytes: int = 10 * 1024 * 1024  # 10MB
     backup_count: int = 5
 
+class DeduplicationConfig(BaseModel):
+    """去重配置"""
+    enabled: bool = True
+    literal_match_enabled: bool = True
+    semantic_similarity_enabled: bool = True
+    semantic_similarity_threshold: float = 0.5  # 语义相似度阈值
+    min_content_length: int = 10  # 最小内容长度才进行去重
+
 class Config(BaseModel):
     """应用配置"""
     logging: LoggingConfig = LoggingConfig()
+    deduplication: DeduplicationConfig = DeduplicationConfig()
     
     @classmethod
     def load(cls) -> "Config":
@@ -23,6 +32,13 @@ class Config(BaseModel):
             logging=LoggingConfig(
                 level=os.getenv("LOG_LEVEL", "INFO"),
                 file_path=os.getenv("LOG_FILE_PATH", "logs/kosmos.log")
+            ),
+            deduplication=DeduplicationConfig(
+                enabled=os.getenv("DEDUP_ENABLED", "true").lower() == "true",
+                literal_match_enabled=os.getenv("DEDUP_LITERAL_ENABLED", "true").lower() == "true",
+                semantic_similarity_enabled=os.getenv("DEDUP_SEMANTIC_ENABLED", "true").lower() == "true",
+                semantic_similarity_threshold=float(os.getenv("DEDUP_SEMANTIC_THRESHOLD", "0.5")),
+                min_content_length=int(os.getenv("DEDUP_MIN_LENGTH", "10"))
             )
         )
 

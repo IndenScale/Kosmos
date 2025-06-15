@@ -137,7 +137,7 @@ def get_document(
     if not kb_document:
         raise HTTPException(status_code=404, detail="文档不存在")
 
-    return KBDocumentResponse.from_orm(kb_document)
+    return KBDocumentResponse.model_validate(kb_document)
 
 @router.get("/{kb_id}/documents/{document_id}/download")
 def download_document(
