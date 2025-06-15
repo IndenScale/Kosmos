@@ -73,10 +73,13 @@ tmp/
 *.temp
 
 # Data files (可根据需要调整)
+data/images/*
 data/db/*
 !data/db
 data/documents/*
 !data/documents
+examples/*
+
 
 # Environment specific
 .env.local
