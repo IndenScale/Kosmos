@@ -35,6 +35,7 @@ export class DocumentService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 300000 // 增加到5分钟（300秒）
       }
     );
     return response.data;
@@ -180,7 +181,7 @@ export class DocumentService {
   /**
    * 验证文件大小
    */
-  validateFileSize(file: File, maxSizeMB = 10): { isValid: boolean; error?: string } {
+  validateFileSize(file: File, maxSizeMB = 1024): { isValid: boolean; error?: string } {
     const isValidSize = file.size / 1024 / 1024 < maxSizeMB;
 
     if (!isValidSize) {
