@@ -43,57 +43,57 @@ import {MemberCard} from '../../components/KnowledgeBase/MemberCard';
 import {StatsCard} from '../../components/KnowledgeBase/StatsCard';
 import {TagDictionaryCard} from '../../components/KnowledgeBase/TagDictionaryCard';
 
-import { countTags } from '../../utils/tagDictionaryUtils';
+import { countTags, cleanTagDictionary } from '../../utils/tagDictionaryUtils';
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 const { confirm } = Modal;
 
-// 递归清洗标签字典的工具函数
-const cleanTagDictionary = (tagDict: any): TagDictionary => {
-  const cleaned: TagDictionary = {};
+// // 递归清洗标签字典的工具函数
+// const cleanTagDictionary = (tagDict: any): TagDictionary => {
+//   const cleaned: TagDictionary = {};
 
-  const cleanNode = (node: any): TagDictionary | string[] => {
-    if (Array.isArray(node)) {
-      // 如果是数组，过滤并返回有效的字符串标签
-      return node.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim());
-    } else if (typeof node === 'object' && node !== null) {
-      // 如果是对象，递归处理每个属性
-      const cleanedObj: TagDictionary = {};
-      Object.entries(node).forEach(([key, value]) => {
-        const cleanedValue = cleanNode(value);
-        if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
-          cleanedObj[key] = cleanedValue;
-        } else if (typeof cleanedValue === 'object' && Object.keys(cleanedValue).length > 0) {
-          cleanedObj[key] = cleanedValue;
-        }
-      });
-      return cleanedObj;
-    } else if (typeof node === 'string') {
-      // 如果是字符串，尝试解析为JSON，否则作为单个标签
-      try {
-        const parsed = JSON.parse(node);
-        return cleanNode(parsed);
-      } catch {
-        return node.trim() ? [node.trim()] : [];
-      }
-    } else {
-      // 其他类型转换为字符串数组
-      const str = String(node).trim();
-      return str ? [str] : [];
-    }
-  };
+//   const cleanNode = (node: any): TagDictionary | string[] => {
+//     if (Array.isArray(node)) {
+//       // 如果是数组，过滤并返回有效的字符串标签
+//       return node.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim());
+//     } else if (typeof node === 'object' && node !== null) {
+//       // 如果是对象，递归处理每个属性
+//       const cleanedObj: TagDictionary = {};
+//       Object.entries(node).forEach(([key, value]) => {
+//         const cleanedValue = cleanNode(value);
+//         if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
+//           cleanedObj[key] = cleanedValue;
+//         } else if (typeof cleanedValue === 'object' && Object.keys(cleanedValue).length > 0) {
+//           cleanedObj[key] = cleanedValue;
+//         }
+//       });
+//       return cleanedObj;
+//     } else if (typeof node === 'string') {
+//       // 如果是字符串，尝试解析为JSON，否则作为单个标签
+//       try {
+//         const parsed = JSON.parse(node);
+//         return cleanNode(parsed);
+//       } catch {
+//         return node.trim() ? [node.trim()] : [];
+//       }
+//     } else {
+//       // 其他类型转换为字符串数组
+//       const str = String(node).trim();
+//       return str ? [str] : [];
+//     }
+//   };
 
-  Object.entries(tagDict || {}).forEach(([key, value]) => {
-    const cleanedValue = cleanNode(value);
-    if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
-      cleaned[key] = cleanedValue;
-    } else if (typeof cleanedValue === 'object' && Object.keys(cleanedValue).length > 0) {
-      cleaned[key] = cleanedValue;
-    }
-  });
+//   Object.entries(tagDict || {}).forEach(([key, value]) => {
+//     const cleanedValue = cleanNode(value);
+//     if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
+//       cleaned[key] = cleanedValue;
+//     } else if (typeof cleanedValue === 'object' && Object.keys(cleanedValue).length > 0) {
+//       cleaned[key] = cleanedValue;
+//     }
+//   });
 
-  return cleaned;
-};
+//   return cleaned;
+// };
 
 export const KBOverviewPage: React.FC = () => {
   const { kbId } = useParams<{ kbId: string }>();

@@ -71,7 +71,7 @@ export class IngestionService {
    */
   async getDocumentJobStatuses(kbId: string): Promise<DocumentJobStatus[]> {
     const response = await apiClient.get(`${this.baseUrl}/kbs/${kbId}/job-statuses`);
-    return response.data;
+    return response.data.jobs; // 返回 jobs 数组而不是整个响应对象
   }
 
   /**
