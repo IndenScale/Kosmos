@@ -8,7 +8,8 @@ import {
   Button,
   Tabs,
   Input,
-  message
+  message,
+  Collapse
 } from 'antd';
 import {
   TagsOutlined,
@@ -26,6 +27,7 @@ import { countTags } from '../../utils/tagDictionaryUtils';
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const { Panel } = Collapse;
 
 interface TagDictionaryCardProps {
   tagDictionary: TagDictionary;
@@ -36,6 +38,75 @@ interface TagDictionaryCardProps {
   onCancel: () => void;
   loading?: boolean;
 }
+
+// 递归渲染标签字典的组件
+const TagDictionaryRenderer: React.FC<{ 
+  tagDict: TagDictionary; 
+  level?: number;
+  parentPath?: string;
+}> = ({ tagDict, level = 0, parentPath = '' }) => {
+  const renderTagNode = (key: string, value: TagDictionary | string[], currentPath: string) => {
+    if (Array.isArray(value)) {
+      // 叶子节点：字符串数组
+      return (
+        <div key={currentPath} className={`mb-4 ${level > 0 ? 'ml-4' : ''}`}>
+          <div className="flex items-center mb-2">
+            <Text strong className={`text-${level === 0 ? 'lg' : 'base'} text-gray-700`}>
+              {key}
+            </Text>
+            <Tag className="ml-2" color={level === 0 ? 'blue' : 'default'}>
+              {value.length}
+            </Tag>
+          </div>
+          <div className="flex flex-wrap gap-2 ml-2">
+            {value.length > 0 ? (
+              value.map((tag: string) => (
+                <Tag key={`${currentPath}-${tag}`} className="mb-1">
+                  {tag}
+                </Tag>
+              ))
+            ) : (
+              <Text type="secondary" className="italic">
+                该分类下暂无标签，点击编辑添加标签
+              </Text>
+            )}
+          </div>
+        </div>
+      );
+    } else {
+      // 中间节点：嵌套对象
+      const subTagCount = countTags({ [key]: value });
+      return (
+        <div key={currentPath} className={`mb-4 ${level > 0 ? 'ml-4' : ''}`}>
+          <div className="flex items-center mb-3">
+            <Text strong className={`text-${level === 0 ? 'lg' : 'base'} text-gray-700`}>
+              {key}
+            </Text>
+            <Tag className="ml-2" color={level === 0 ? 'blue' : 'default'}>
+              {subTagCount} 个标签
+            </Tag>
+          </div>
+          <div className={`${level === 0 ? 'border-l-2 border-gray-200 pl-4' : ''}`}>
+            <TagDictionaryRenderer 
+              tagDict={value} 
+              level={level + 1} 
+              parentPath={currentPath}
+            />
+          </div>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div>
+      {Object.entries(tagDict).map(([key, value]) => {
+        const currentPath = parentPath ? `${parentPath}.${key}` : key;
+        return renderTagNode(key, value, currentPath);
+      })}
+    </div>
+  );
+};
 
 export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
   tagDictionary,
@@ -53,6 +124,14 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
   const [jsonError, setJsonError] = useState<string>('');
 
   const totalTags = countTags(tagDictionary);
+
+  // 初始化编辑状态
+  React.useEffect(() => {
+    if (isEditing) {
+      setEditingTags(tagDictionary);
+      setJsonInput(JSON.stringify(tagDictionary, null, 2));
+    }
+  }, [isEditing, tagDictionary]);
 
   // 手动编辑模式处理
   const handleAddTag = (category: string) => {
@@ -196,27 +275,7 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
                   </span>
                 )}
               </div>
-              {Object.entries(tagDictionary).map(([category, tags]) => (
-                <div key={category} className="mb-6 last:mb-0">
-                  <div className="flex items-center mb-3">
-                    <Text strong className="text-lg text-gray-700">{category}</Text>
-                    <Tag className="ml-2">{Array.isArray(tags) ? tags.length : 0}</Tag>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.isArray(tags) && tags.length > 0 ? (
-                      tags.map((tag: string) => (
-                        <Tag key={tag} className="mb-2">
-                          {tag}
-                        </Tag>
-                      ))
-                    ) : (
-                      <Text type="secondary" className="italic">
-                        该分类下暂无标签，点击编辑添加标签
-                      </Text>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <TagDictionaryRenderer tagDict={tagDictionary} />
             </>
           )}
         </div>
@@ -228,10 +287,56 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
             className="mb-4"
           >
             <Tabs.TabPane tab="手动编辑" key="manual">
-              {/* 手动编辑内容 */}
+              <div className="space-y-4">
+                <div>
+                  <Text strong>添加新分类：</Text>
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      placeholder="输入分类名称"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onPressEnter={handleAddCategory}
+                    />
+                    <Button 
+                      icon={<PlusOutlined />} 
+                      onClick={handleAddCategory}
+                      type="primary"
+                    >
+                      添加分类
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <Text strong>当前标签结构：</Text>
+                  <div className="mt-2 max-h-96 overflow-y-auto">
+                    <TagDictionaryRenderer tagDict={editingTags} />
+                  </div>
+                </div>
+              </div>
             </Tabs.TabPane>
             <Tabs.TabPane tab="JSON 编辑" key="json">
-              {/* JSON编辑内容 */}
+              <div className="space-y-4">
+                <div>
+                  <Text strong>JSON 格式编辑：</Text>
+                  <TextArea
+                    rows={12}
+                    value={jsonInput}
+                    onChange={(e) => handleJsonChange(e.target.value)}
+                    placeholder="请输入有效的JSON格式标签字典"
+                    className={jsonError ? 'border-red-500' : ''}
+                  />
+                  {jsonError && (
+                    <Text type="danger" className="text-sm">
+                      {jsonError}
+                    </Text>
+                  )}
+                </div>
+                
+                <div className="text-sm text-gray-500">
+                  <Text>格式说明：支持多层嵌套结构，叶子节点必须是字符串数组</Text>
+                </div>
+              </div>
             </Tabs.TabPane>
           </Tabs>
         </div>

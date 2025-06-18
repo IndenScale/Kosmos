@@ -45,3 +45,8 @@ export interface DocumentJobStatus {
   progress?: number;
   error_message?: string;
 }
+
+export interface IngestionJobListResponse {
+  jobs: IngestionJob[];
+  total: number;
+}

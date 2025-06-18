@@ -48,7 +48,7 @@ export const KnowledgeBaseService = {
 
   // 新增：获取过时文档统计
   async getOutdatedDocuments(kbId: string): Promise<any[]> {
-    const response = await apiClient.get(`/kbs/${kbId}/outdated-documents`);
+    const response = await apiClient.get(`/api/v1/kbs/${kbId}/documents/outdated`);
     return response.data;
   },
 

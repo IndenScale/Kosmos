@@ -100,7 +100,7 @@ class Deduplicator:
                     # 进一步检查内容相似性（简单的字符串相似度检查）
                     content_similarity = self._simple_content_similarity(current_content, existing_content)
 
-                    if content_similarity > 0.95:  # 80%的内容相似度
+                    if content_similarity > 0.95:  # 95%的内容相似度
                         logger.debug(f"发现语义相似内容 (分数差异: {relative_diff:.3f}, 内容相似度: {content_similarity:.3f})，已跳过: {current_content[:50]}...")
                         is_duplicate = True
                         break

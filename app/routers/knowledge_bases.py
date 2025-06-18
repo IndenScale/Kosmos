@@ -92,8 +92,9 @@ def get_knowledge_base(
         member_data = {
             "user_id": member.user_id,
             "username": member.user.username,
+            "email": member.user.email,
             "role": member.role,
-            "joined_at": member.joined_at
+            "created_at": member.created_at  # 修复：joined_at -> created_at
         }
         member_responses.append(KBMemberResponse(**member_data))
 
@@ -110,6 +111,7 @@ def get_knowledge_base(
         name=kb.name,
         description=kb.description,
         owner_id=kb.owner_id,
+        owner_username=kb.owner.username,  # 添加缺失的 owner_username 字段
         tag_dictionary=tag_dict,
         milvus_collection_id=kb.milvus_collection_id,
         is_public=kb.is_public,

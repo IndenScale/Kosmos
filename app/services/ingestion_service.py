@@ -128,17 +128,18 @@ class IngestionService:
 
         # 5. 提取文档内容（processor现在返回完整的markdown）
         markdown_text, _ = processor.extract_content(file_path)  # 忽略图片路径
-        
+
         # 6. 移除图片处理步骤（已在processor中完成）
         # if image_paths:
         #     markdown_text = self._process_images(markdown_text, image_paths)
-        
+
         # 7. 分割文本
         chunk_texts = self.text_splitter.split_text(markdown_text)
 
         # 8. 处理每个chunk
         chunks = []
         milvus_data = []
+        skipped_chunks = 0  # 统计跳过的chunk数量
 
         for i, chunk_text in enumerate(chunk_texts):
             try:
@@ -149,6 +150,12 @@ class IngestionService:
                 if not isinstance(tags, list):
                     print(f"警告: 标签生成返回非列表类型: {type(tags)}, 使用空列表")
                     tags = []
+
+                # 新增：如果标签为空，说明是目录等无用内容，直接跳过
+                if not tags or len(tags) == 0:
+                    print(f"跳过无标签chunk {i}: 可能是目录或索引内容")
+                    skipped_chunks += 1
+                    continue
 
                 # 生成嵌入向量
                 embedding = self.ai_utils.get_embedding(chunk_text)
@@ -177,7 +184,10 @@ class IngestionService:
                 print(f"处理chunk {i} 时发生错误: {str(e)}, 跳过此chunk")
                 continue
 
-        # 9. 保存到SQLite
+        # 输出统计信息
+        print(f"文档处理完成: 总chunk数={len(chunk_texts)}, 有效chunk数={len(chunks)}, 跳过chunk数={skipped_chunks}")
+
+        # 9. 保存到SQLite（只保存有标签的chunk）
         db.add_all(chunks)
         db.commit()
 
@@ -193,7 +203,7 @@ class IngestionService:
         ).first()
 
         if kb_document:
-            kb_document.last_ingest_time = func.now()
+            kb_document.last_ingest_time = func.now
             db.commit()
 
     # 移除 _process_images 方法
