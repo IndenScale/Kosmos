@@ -1,4 +1,6 @@
 import apiClient from './apiClient';
+import mammoth from 'mammoth';
+import jsPDF from 'jspdf';
 import {
   DocumentRecord,
   DocumentListResponse,
@@ -7,6 +9,7 @@ import {
   DocumentDeleteResponse,
   BatchAction
 } from '../types/document';
+
 
 export class DocumentService {
   private readonly baseUrl = '/api/v1/kbs';
@@ -204,7 +207,111 @@ export class DocumentService {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
+
+  /**
+   * 获取文档预览URL
+   */
+  getPreviewUrl(kbId: string, documentId: string): string {
+    return `${this.baseUrl}/${kbId}/documents/${documentId}/download`;
+  }
+  isSupportedForPreview(filename: string): { supported: boolean; type: 'image' | 'text' | 'pdf' | 'docx' | 'pptx' | 'unsupported' } {
+    const extension = filename.toLowerCase().split('.').pop() || '';
+
+    const imageTypes = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'];
+    const textTypes = ['txt', 'md', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'html', 'css', 'json', 'xml'];
+    const pdfTypes = ['pdf'];
+    const docxTypes = ['docx', 'doc'];
+    const pptxTypes = ['pptx'];
+
+    if (imageTypes.includes(extension)) {
+      return { supported: true, type: 'image' };
+    }
+    if (textTypes.includes(extension)) {
+      return { supported: true, type: 'text' };
+    }
+    if (pdfTypes.includes(extension)) {
+      return { supported: true, type: 'pdf' };
+    }
+    if (docxTypes.includes(extension)) {
+      return { supported: true, type: 'docx' };
+    }
+    if (pptxTypes.includes(extension)) {
+      return { supported: true, type: 'pptx' };
+    }
+
+    return { supported: false, type: 'unsupported' };
+  }
+
+  /**
+   * 获取文档预览内容（用于文本类文件）
+   */
+  async getDocumentPreview(kbId: string, documentId: string): Promise<string> {
+    const response = await apiClient.get(
+      `${this.baseUrl}/${kbId}/documents/${documentId}/download`,
+      {
+        responseType: 'text',
+      }
+    );
+    return response.data;
+  }
+
+  async convertDocxToPdf(kbId: string, documentId: string): Promise<string> {
+    try {
+      // 下载docx文件
+      const blob = await this.downloadDocument(kbId, documentId);
+      const arrayBuffer = await blob.arrayBuffer();
+
+      // 转换为HTML
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+
+      // 创建PDF
+      const pdf = new jsPDF();
+      
+      return new Promise((resolve, reject) => {
+        pdf.html(result.value, {
+          callback: function (pdf) {
+            // 生成blob并创建URL
+            const pdfBlob = pdf.output('blob');
+            const url = URL.createObjectURL(pdfBlob);
+            resolve(url);
+          },
+          x: 10,
+          y: 10,
+          width: 180, // 设置内容宽度
+          windowWidth: 800 // 设置窗口宽度
+        });
+      });
+    } catch (error) {
+      throw new Error('DOCX转换失败');
+    }
+  }
+
+  public async convertOfficeToPdf(kbId: string, documentId: string): Promise<string> {
+    try {
+      // 下载文件
+      const blob = await this.downloadDocument(kbId, documentId);
+      const arrayBuffer = await blob.arrayBuffer();
+
+      // 检查文件类型 - 需要从document参数获取文件名
+      // 暂时简化处理，假设是PPTX
+      const pdf = new jsPDF();
+      pdf.setFontSize(16);
+      pdf.text('PPTX文件预览', 20, 30);
+      pdf.setFontSize(12);
+      pdf.text('此文件为PowerPoint演示文稿', 20, 50);
+      pdf.text('请下载文件查看完整内容', 20, 70);
+      pdf.text('或使用Microsoft PowerPoint等软件打开', 20, 90);
+
+      // 生成blob并创建URL
+      const pdfBlob = pdf.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      return url;
+    } catch (error) {
+      throw new Error('文件转换失败');
+    }
+  }
 }
+
 
 // 导出单例实例
 export const documentService = new DocumentService();

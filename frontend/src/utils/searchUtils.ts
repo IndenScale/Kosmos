@@ -32,7 +32,7 @@ export const truncateContent = (content: string, maxLines: number = 5): string =
 
 // 计算EIG说明文本
 export const getEIGExplanation = (hits: number, totalResults: number): string => {
-  return `EIG分数计算方式：ABS(${hits} - ${totalResults} / 2) = ${Math.abs(hits - totalResults / 2).toFixed(2)}
+  return `EIG分数计算方式：ABS(标签命中搜索结果数- 总搜索结果数 / 2)\n
 
 EIG分数越低（越接近0），标签质量越高。`;
 };
@@ -79,23 +79,23 @@ export class QueryParser {
     const must_not_tags: string[] = [];
     const like_tags: string[] = [];
     let text = '';
-    
+
     // 使用正则表达式匹配空格后跟标识符的模式
     // 匹配模式：空格 + 标识符(+/-/~) + 标签内容
     const tagPattern = /\s([+~-])(\S+)/g;
     let lastIndex = 0;
     let match;
-    
+
     // 提取所有标签
     while ((match = tagPattern.exec(query)) !== null) {
       const [fullMatch, operator, tag] = match;
       const matchStart = match.index;
-      
+
       // 如果这是第一个匹配，将之前的内容作为文本
       if (lastIndex === 0 && matchStart > 0) {
         text = query.substring(0, matchStart).trim();
       }
-      
+
       // 根据操作符分类标签
       switch (operator) {
         case '+':
@@ -108,10 +108,10 @@ export class QueryParser {
           like_tags.push(tag);
           break;
       }
-      
+
       lastIndex = matchStart + fullMatch.length;
     }
-    
+
     // 如果没有找到任何标签，整个查询都是文本
     if (lastIndex === 0) {
       text = query.trim();
@@ -131,7 +131,7 @@ export class QueryParser {
    */
   static buildQuery(text: string, activeTags: ActiveTag[]): string {
     let query = text;
-    
+
     activeTags.forEach(({ tag, type }) => {
       switch (type) {
         case TagType.LIKE:

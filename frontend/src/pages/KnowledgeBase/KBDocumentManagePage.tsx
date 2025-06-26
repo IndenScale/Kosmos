@@ -24,6 +24,7 @@ import { DocumentToolbar } from '../../components/DocumentManage/DocumentToolbar
 import { OutdatedDocumentsAlert } from '../../components/DocumentManage/OutdatedDocumentsAlert';
 import { DocumentTable } from '../../components/DocumentManage/DocumentTable';
 import { UploadModal } from '../../components/DocumentManage/UploadModal';
+import { DocumentPreviewModal } from '../../components/DocumentManage/DocumentPreviewModal';
 
 // 导入工具函数
 import { getDocumentStatus, isDocumentOutdated } from '../../utils/documentUtils';
@@ -36,6 +37,8 @@ export const KBDocumentManagePage: React.FC = () => {
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [documentJobStatuses, setDocumentJobStatuses] = useState<Map<string, DocumentJobStatus>>(new Map());
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<DocumentRecord | null>(null);
 
   // 获取知识库详情
   const { data: kbDetail } = useQuery({
@@ -298,6 +301,16 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [selectedRowKeys, documentsData, kbId]);
 
+  const handlePreview = (documentId: string) => {
+    const document = documentsData?.documents?.find(doc => doc.document_id === documentId);
+    if (document) {
+      setPreviewDocument(document);
+      setPreviewModalVisible(true);
+    } else {
+      message.error('文档信息不存在');
+    }
+  };
+
   const handleDownload = useCallback(async (documentId: string, filename: string) => {
     try {
       const blob = await documentService.downloadDocument(kbId!, documentId);
@@ -382,7 +395,7 @@ export const KBDocumentManagePage: React.FC = () => {
         onSelectionChange={handleSelectionChange}
         onSelectAll={handleSelectAll}
         onSelectNone={handleSelectNone}
-        onPreview={(documentId) => message.info('预览功能待实现')}
+        onPreview={handlePreview}
         onDownload={handleDownload}
         onIngest={(documentId) => ingestMutation.mutate({ documentId })}
         onReIngest={(documentId) => ingestMutation.mutate({ documentId, forceReingest: true })}
@@ -395,6 +408,17 @@ export const KBDocumentManagePage: React.FC = () => {
         visible={uploadModalVisible}
         onCancel={() => setUploadModalVisible(false)}
         uploadProps={uploadProps}
+      />
+
+      <DocumentPreviewModal
+        visible={previewModalVisible}
+        document={previewDocument}
+        kbId={kbId!}
+        onClose={() => {
+          setPreviewModalVisible(false);
+          setPreviewDocument(null);
+        }}
+        onDownload={handleDownload}
       />
     </div>
   );

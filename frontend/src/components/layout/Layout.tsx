@@ -20,17 +20,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="profile" icon={<UserOutlined />}>
-        个人资料
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
-        退出登录
-      </Menu.Item>
-    </Menu>
-  );
+  const userMenu = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: '个人资料',
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: handleLogout,
+    },
+  ];
 
   const menuItems = [
     {
@@ -57,7 +62,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="flex items-center">
           <Space>
             <span className="text-gray-600">欢迎, {user?.username}</span>
-            <Dropdown overlay={userMenu} placement="bottomRight">
+            <Dropdown menu={{ items: userMenu }} placement="bottomRight">
               <Avatar 
                 icon={<UserOutlined />} 
                 className="cursor-pointer bg-gray-600"

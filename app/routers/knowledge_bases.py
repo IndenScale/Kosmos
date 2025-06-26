@@ -217,5 +217,5 @@ def get_knowledge_base_stats(
     db: Session = Depends(get_db)
 ):
     """获取知识库统计信息"""
-    # 这里可以添加统计逻辑
-    return {"message": "Stats endpoint - to be implemented"}
+    kb_service = KBService(db)
+    return kb_service.get_kb_stats(kb_id)
