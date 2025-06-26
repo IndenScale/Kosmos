@@ -43,37 +43,10 @@ const DashboardPlaceholder: React.FC = () => (
 const ProtectedLayout: React.FC = () => (
   <ProtectedRoute>
     <Layout>
-      <Outlet /> {/* <-- 这是关键！子路由的内容将在这里渲染 */}
+      <Outlet />
     </Layout>
   </ProtectedRoute>
 );
-
-// function App() {
-//   return (
-//     <QueryClientProvider client={queryClient}>
-//       <ConfigProvider locale={zhCN}>
-//         <Router>
-//           <Routes>
-//             <Route path="/login" element={<LoginPage />} />
-//             <Route path="/register" element={<RegisterPage />} />
-//             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-//             <Route path="/dashboard" element={
-//               <ProtectedRoute>
-//                 <Layout>
-//                   <Routes>
-//                     <Route index element={<DashboardPlaceholder />} />
-//                     <Route path="knowledge-bases" element={<KnowledgeBaseListPage />} />
-//                     <Route path="kb/:kbId" element={<div className="p-6"><h2>知识库详情</h2><p>功能尚未实现</p></div>} />
-//                   </Routes>
-//                 </Layout>
-//               </ProtectedRoute>
-//             } />
-//           </Routes>
-//         </Router>
-//       </ConfigProvider>
-//     </QueryClientProvider>
-//   );
-// }
 
 function App() {
   return (

@@ -42,6 +42,7 @@ import {BasicInfoCard} from '../../components/KnowledgeBase/BasicInfoCard';
 import {MemberCard} from '../../components/KnowledgeBase/MemberCard';
 import {StatsCard} from '../../components/KnowledgeBase/StatsCard';
 import {TagDictionaryCard} from '../../components/KnowledgeBase/TagDictionaryCard';
+import {KBInfoCard} from '../../components/KnowledgeBase/KBInfoCard';
 
 import { countTags, cleanTagDictionary } from '../../utils/tagDictionaryUtils';
 const { TextArea } = Input;
@@ -217,6 +218,11 @@ export const KBOverviewPage: React.FC = () => {
 
         {/* 右侧边栏 */}
         <Col xs={24} lg={8}>
+          <KBInfoCard 
+            kbId={kbId!} 
+            kbName={kbDetail?.name || ''} 
+          />
+          
           <StatsCard
             documentCount={kbStats?.document_count || 0}
             chunkCount={kbStats?.chunk_count || 0}

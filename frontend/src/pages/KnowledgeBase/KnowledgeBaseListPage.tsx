@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Button, Row, Col, Typography, Tag, Space, Modal, Form, Input, Switch, message, Spin } from 'antd';
-import { PlusOutlined, DatabaseOutlined, FileTextOutlined, TagsOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Button, Row, Col, Typography, Tag, Space, Modal, Form, Input, Switch, message, Spin, Dropdown, Popconfirm } from 'antd';
+import { PlusOutlined, DatabaseOutlined, FileTextOutlined, TagsOutlined, SettingOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
@@ -34,6 +34,18 @@ export const KnowledgeBaseListPage: React.FC = () => {
     }
   });
 
+  // 删除知识库
+  const deleteKBMutation = useMutation({
+    mutationFn: KnowledgeBaseService.deleteKB,
+    onSuccess: () => {
+      message.success('知识库删除成功');
+      queryClient.invalidateQueries({ queryKey: ['KnowledgeBases'] });
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '删除失败');
+    }
+  });
+
   const handleCreateKB = (values: KBCreate) => {
     createKBMutation.mutate(values);
   };
@@ -42,10 +54,20 @@ export const KnowledgeBaseListPage: React.FC = () => {
     navigate(`/dashboard/kb/${kbId}`);
   };
 
+  const handleManageKB = (kbId: string) => {
+    navigate(`/dashboard/kb/${kbId}`);
+  };
+
+  const handleDeleteKB = (kbId: string) => {
+    deleteKBMutation.mutate(kbId);
+  };
+
   const getTopLevelTags = (tagDictionary: Record<string, any>): string[] => {
     if (!tagDictionary || typeof tagDictionary !== 'object') return [];
     return Object.keys(tagDictionary).slice(0, 3); // 显示前3个顶级标签
   };
+
+
 
   if (isLoading) {
     return (
@@ -80,13 +102,42 @@ export const KnowledgeBaseListPage: React.FC = () => {
             <Col xs={24} sm={12} lg={8} xl={6} key={kb.id}>
               <Card
                 hoverable
-                className="h-full cursor-pointer transition-all duration-200 hover:shadow-lg"
+                className="h-full transition-all duration-200 hover:shadow-lg"
                 onClick={() => handleKBClick(kb.id)}
                 actions={[
-                  <SettingOutlined key="setting" onClick={(e) => {
-                    e.stopPropagation();
-                    // 这里可以添加设置功能
-                  }} />
+                  <Dropdown
+                    key="more"
+                    menu={{
+                      items: [
+                        {
+                          key: 'manage',
+                          icon: <SettingOutlined />,
+                          label: '管理',
+                          onClick: () => handleManageKB(kb.id),
+                        },
+                        {
+                          key: 'delete',
+                          icon: <DeleteOutlined />,
+                          label: (
+                            <Popconfirm
+                              title="确认删除"
+                              description={`确定要删除知识库"${kb.name}"吗？此操作不可恢复。`}
+                              onConfirm={() => handleDeleteKB(kb.id)}
+                              okText="确认删除"
+                              cancelText="取消"
+                              okButtonProps={{ danger: true, loading: deleteKBMutation.isPending }}
+                            >
+                              <span>删除</span>
+                            </Popconfirm>
+                          ),
+                          danger: true,
+                        },
+                      ]
+                    }}
+                    trigger={['click']}
+                  >
+                    <MoreOutlined onClick={(e) => e.stopPropagation()} />
+                  </Dropdown>
                 ]}
               >
                 <div className="mb-4">
