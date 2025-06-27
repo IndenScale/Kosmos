@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -12,6 +12,17 @@ class SearchResult(BaseModel):
     content: str
     tags: List[str]
     score: float
+    screenshot_ids: Optional[List[str]] = Field(default=None, description="关联的页面截图ID列表")
+    
+    @validator('screenshot_ids', pre=True)
+    def validate_screenshot_ids(cls, v):
+        """验证并清理screenshot_ids字段"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            # 过滤掉None值和非字符串值
+            return [item for item in v if item is not None and isinstance(item, str)]
+        return []
 
 class RecommendedTag(BaseModel):
     tag: str
@@ -29,7 +40,18 @@ class ChunkResponse(BaseModel):
     chunk_index: int
     content: str
     tags: List[str]
+    screenshot_ids: Optional[List[str]] = Field(default=None, description="关联的页面截图ID列表")
     created_at: datetime
+    
+    @validator('screenshot_ids', pre=True)
+    def validate_screenshot_ids(cls, v):
+        """验证并清理screenshot_ids字段"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            # 过滤掉None值和非字符串值
+            return [item for item in v if item is not None and isinstance(item, str)]
+        return []
     
     class Config:
         from_attributes = True

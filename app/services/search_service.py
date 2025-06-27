@@ -8,6 +8,7 @@ from utils.recommender import TagRecommender
 from utils.deduplicator import Deduplicator
 from typing import List, Dict, Any, Optional
 from app.models.chunk import Chunk
+from app.services.screenshot_service import ScreenshotService
 from app.config import get_logger
 import json
 
@@ -60,19 +61,36 @@ class SearchService:
             if chunk:
                 chunks[chunk_id] = chunk
 
-        # 6. 构建初步结果
+        # 6. 构建初步结果，包含截图信息
+        screenshot_service = ScreenshotService(self.db)
         initial_results = []
         for result in reranked_results[:top_k * 2]:
             chunk_id = result["chunk_id"]
             if chunk_id in chunks:
                 chunk = chunks[chunk_id]
                 chunk_tags = json.loads(chunk.tags) if chunk.tags else []
+                
+                # 获取chunk关联的截图ID
+                screenshot_ids = []
+                if chunk.page_screenshot_ids:
+                    try:
+                        parsed_ids = json.loads(chunk.page_screenshot_ids)
+                        # 确保screenshot_ids是列表，并过滤掉None值
+                        if isinstance(parsed_ids, list):
+                            screenshot_ids = [sid for sid in parsed_ids if sid is not None and isinstance(sid, str)]
+                        else:
+                            screenshot_ids = []
+                    except json.JSONDecodeError:
+                        logger.warning(f"解析chunk {chunk_id} 的截图ID列表失败")
+                        screenshot_ids = []
+                
                 initial_results.append({
                     "chunk_id": chunk_id,
                     "document_id": chunk.document_id,
                     "content": chunk.content,
                     "tags": chunk_tags,
-                    "score": result.get("rerank_score", result["score"])
+                    "score": result.get("rerank_score", result["score"]),
+                    "screenshot_ids": screenshot_ids  # 添加截图ID列表
                 })
 
         # 7. 去重处理
