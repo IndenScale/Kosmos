@@ -15,6 +15,7 @@ class Chunk(Base):
     chunk_index = Column(Integer, nullable=False)  # 在文档中的顺序
     content = Column(Text, nullable=False)  # 片段的文本内容 (Markdown格式)
     tags = Column(Text, nullable=False)  # LLM生成的标签 (JSON数组格式)
+    page_screenshot_ids = Column(Text, nullable=True)  # 关联的页面截图ID列表 (JSON数组格式)
     created_at = Column(DateTime, default=func.now())
 
 class IngestionJob(Base):

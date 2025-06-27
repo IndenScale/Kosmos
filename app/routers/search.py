@@ -7,6 +7,7 @@ from app.services.search_service import SearchService
 from app.schemas.search import SearchQuery, SearchResponse, ChunkResponse
 from app.models.user import User
 from typing import Optional
+import json
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
@@ -24,23 +25,33 @@ def get_chunk(
         raise HTTPException(status_code=404, detail="Chunk不存在")
     
     # 解析tags
-    import json
-    tags = json.loads(chunk.tags) if chunk.tags else []
+    tags_str = getattr(chunk, 'tags', None)
+    tags = json.loads(tags_str) if tags_str else []
+    
+    # 解析screenshot_ids
+    screenshot_ids = []
+    screenshot_ids_str = getattr(chunk, 'page_screenshot_ids', None)
+    if screenshot_ids_str:
+        try:
+            screenshot_ids = json.loads(screenshot_ids_str)
+        except json.JSONDecodeError:
+            screenshot_ids = []
     
     return ChunkResponse(
-        id=chunk.id,
-        kb_id=chunk.kb_id,
-        document_id=chunk.document_id,
-        chunk_index=chunk.chunk_index,
-        content=chunk.content,
+        id=getattr(chunk, 'id'),
+        kb_id=getattr(chunk, 'kb_id'),
+        document_id=getattr(chunk, 'document_id'),
+        chunk_index=getattr(chunk, 'chunk_index'),
+        content=getattr(chunk, 'content'),
         tags=tags,
-        created_at=chunk.created_at
+        screenshot_ids=screenshot_ids,
+        created_at=getattr(chunk, 'created_at')
     )
 
 @router.post("/kbs/{kb_id}/search", response_model=SearchResponse)
 def search_knowledge_base(
+    query: SearchQuery,
     kb_id: str = Path(...),
-    query: SearchQuery = ...,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_kb_or_public)
 ):

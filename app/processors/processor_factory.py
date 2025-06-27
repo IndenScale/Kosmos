@@ -2,6 +2,7 @@ from typing import Optional
 from .base_processor import BaseProcessor
 from .docx_processor import DocxProcessor
 from .pptx_processor import PptxProcessor
+from .pdf_processor import PDFProcessor
 from .image_processor import ImageProcessor
 from .code_processor import CodeProcessor
 from .generic_processor import GenericProcessor
@@ -11,10 +12,11 @@ class ProcessorFactory:
     
     def __init__(self):
         self.processors = [
+            PDFProcessor(),  # PDF处理器，支持截图
             DocxProcessor(),
             PptxProcessor(),
             ImageProcessor(),
-            CodeProcessor(),  # 添加代码处理器
+            CodeProcessor(),
             GenericProcessor()  # 通用处理器作为后备
         ]
     

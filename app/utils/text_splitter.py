@@ -7,10 +7,78 @@ class TextSplitter:
         self.chunk_overlap = chunk_overlap
     
     def split_text(self, text: str) -> List[str]:
-        """将文本分割成chunks"""
+        """将文本分割成chunks，保持页码标记与内容的关联"""
         if not text.strip():
             return []
         
+        # 首先按页面分割
+        page_sections = self._split_by_pages(text)
+        
+        if not page_sections:
+            # 如果没有页码标记，使用传统方法
+            return self._traditional_split(text)
+        
+        chunks = []
+        
+        for page_section in page_sections:
+            # 每个页面可能还需要进一步分割
+            page_chunks = self._split_page_section(page_section)
+            chunks.extend(page_chunks)
+        
+        return [chunk for chunk in chunks if chunk.strip()]
+    
+    def _split_by_pages(self, text: str) -> List[str]:
+        """按页码标记分割文本"""
+        # 查找页码标记模式
+        page_pattern = r'##\s*第\d+页'
+        
+        # 如果没有找到页码标记，返回空列表
+        if not re.search(page_pattern, text):
+            return []
+        
+        # 按页码标记分割
+        page_sections = re.split(page_pattern, text)
+        page_headers = re.findall(page_pattern, text)
+        
+        # 重新组装，确保每个部分都包含页码标记
+        result = []
+        
+        # 第一个部分可能没有页码标记（文档开头）
+        if page_sections[0].strip():
+            result.append(page_sections[0].strip())
+        
+        # 后续部分都有页码标记
+        for i, header in enumerate(page_headers):
+            section_content = page_sections[i + 1] if i + 1 < len(page_sections) else ""
+            combined = f"{header}\n\n{section_content}".strip()
+            if combined:
+                result.append(combined)
+        
+        return result
+    
+    def _split_page_section(self, page_section: str) -> List[str]:
+        """分割单个页面的内容，保持页码标记在第一个chunk中"""
+        if len(page_section) <= self.chunk_size:
+            return [page_section]
+        
+        # 提取页码标记
+        page_header_match = re.match(r'(##\s*第\d+页)', page_section)
+        page_header = page_header_match.group(1) if page_header_match else ""
+        
+        # 获取页面内容（去除页码标记）
+        content = page_section[len(page_header):].strip() if page_header else page_section
+        
+        # 分割内容
+        content_chunks = self._traditional_split(content)
+        
+        # 将页码标记添加到第一个chunk
+        if content_chunks and page_header:
+            content_chunks[0] = f"{page_header}\n\n{content_chunks[0]}"
+        
+        return content_chunks
+    
+    def _traditional_split(self, text: str) -> List[str]:
+        """传统的文本分割方法"""
         # 按段落分割
         paragraphs = self._split_by_paragraphs(text)
         

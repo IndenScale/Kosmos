@@ -3,13 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, create_tables
-from app.routers import auth, knowledge_bases, documents, ingestion, search
+from app.routers import auth, knowledge_bases, documents, ingestion, search, screenshots
 from app.utils.task_queue import task_queue
 
 import app.models.user
 import app.models.knowledge_base
 import app.models.document
 import app.models.chunk
+import app.models.page_screenshot
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,6 +60,7 @@ app.include_router(knowledge_bases.router)
 app.include_router(documents.router)
 app.include_router(ingestion.router)
 app.include_router(search.router)
+app.include_router(screenshots.router)
 
 @app.get("/")
 def read_root():
