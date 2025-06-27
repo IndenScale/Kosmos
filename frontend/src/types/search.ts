@@ -10,12 +10,23 @@ export interface SearchResult {
   content: string;
   tags: string[];
   score: number;
+  screenshot_ids?: string[];  // 添加截图ID列表
 }
 
 export interface RecommendedTag {
   tag: string;
   freq: number;
   eig_score: number;
+}
+
+export interface ScreenshotInfo {
+  id: string;
+  document_id: string;
+  page_number: number;
+  width?: number;
+  height?: number;
+  created_at?: string;
+  file_exists?: boolean;
 }
 
 export interface SearchResponse {
