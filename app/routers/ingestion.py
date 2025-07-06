@@ -15,11 +15,18 @@ router = APIRouter(prefix="/api/v1", tags=["ingestion"])
 def start_ingestion(
     kb_id: str,
     document_id: str,
+    skip_tagging: bool = False,
     current_user: User = Depends(get_current_user),
     kb_member = Depends(get_kb_admin_or_owner),
     db: Session = Depends(get_db)
 ):
-    """Start Ingestion - 启动文档摄入任务"""
+    """Start Ingestion - 启动文档摄入任务
+    
+    Args:
+        skip_tagging: 是否跳过标签生成步骤，默认False
+                     如果设为True，文档将只进行格式转换、分块、嵌入和存储，
+                     标签生成可以稍后通过TaggingService或SDTM完成
+    """
     ingestion_service = IngestionService(db)
 
     try:
@@ -28,13 +35,28 @@ def start_ingestion(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        job_id = loop.run_until_complete(ingestion_service.start_ingestion_job(kb_id, document_id, current_user.id))
+        job_id = loop.run_until_complete(ingestion_service.start_ingestion_job(
+            kb_id, document_id, current_user.id, skip_tagging
+        ))
         job = ingestion_service.get_job_status(job_id)
 
         loop.close()
         return IngestionJobResponse.from_orm(job)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/kbs/{kb_id}/ingestion-stats")
+def get_ingestion_stats(
+    kb_id: str,
+    current_user: User = Depends(get_current_user),
+    kb_member = Depends(get_kb_admin_or_owner),
+    db: Session = Depends(get_db)
+):
+    """获取知识库的摄入统计信息"""
+    ingestion_service = IngestionService(db)
+    stats = ingestion_service.get_ingestion_stats(kb_id)
+    return stats
 
 
 @router.get("/jobs/{job_id}", response_model=IngestionJobResponse)
@@ -105,6 +127,7 @@ def get_queue_stats(
 def reingest_document(
     kb_id: str,
     document_id: str,
+    skip_tagging: bool = True,
     current_user: User = Depends(get_current_user),
     kb_member = Depends(get_kb_admin_or_owner),
     db: Session = Depends(get_db)
@@ -122,7 +145,7 @@ def reingest_document(
         loop.run_until_complete(ingestion_service.delete_document_index(kb_id, document_id))
 
         # 重新开始摄入
-        job_id = loop.run_until_complete(ingestion_service.start_ingestion_job(kb_id, document_id, current_user.id))
+        job_id = loop.run_until_complete(ingestion_service.start_ingestion_job(kb_id, document_id, current_user.id, skip_tagging))
         job = ingestion_service.get_job_status(job_id)
 
         loop.close()

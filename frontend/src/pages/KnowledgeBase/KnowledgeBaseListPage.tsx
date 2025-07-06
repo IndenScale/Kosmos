@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Button, Row, Col, Typography, Tag, Space, Modal, Form, Input, Switch, message, Spin, Dropdown, Popconfirm } from 'antd';
 import { PlusOutlined, DatabaseOutlined, FileTextOutlined, TagsOutlined, SettingOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,17 +8,60 @@ import { KnowledgeBase, KBCreate } from '../../types/knowledgeBase';
 
 const { Title, Text, Paragraph } = Typography;
 
+// 定义知识库统计数据类型
+interface KBWithStats extends KnowledgeBase {
+  stats?: {
+    document_count: number;
+    chunk_count: number;
+  };
+}
+
 export const KnowledgeBaseListPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [kbsWithStats, setKbsWithStats] = useState<KBWithStats[]>([]);
 
   // 获取知识库列表
   const { data: KnowledgeBases, isLoading } = useQuery({
     queryKey: ['KnowledgeBases'],
     queryFn: KnowledgeBaseService.getMyKBs
   });
+
+  // 获取所有知识库的统计数据
+  useEffect(() => {
+    if (KnowledgeBases) {
+      const fetchStatsForAllKBs = async () => {
+        const kbsWithStatsPromises = KnowledgeBases.map(async (kb) => {
+          try {
+            const stats = await KnowledgeBaseService.getKBStats(kb.id);
+            return {
+              ...kb,
+              stats: {
+                document_count: stats.document_count,
+                chunk_count: stats.chunk_count
+              }
+            };
+          } catch (error) {
+            console.error(`Failed to fetch stats for KB ${kb.id}:`, error);
+            return {
+              ...kb,
+              stats: {
+                document_count: 0,
+                chunk_count: 0
+              }
+            };
+          }
+        });
+
+        const results = await Promise.all(kbsWithStatsPromises);
+        setKbsWithStats(results);
+      };
+
+      fetchStatsForAllKBs();
+    }
+  }, [KnowledgeBases]);
 
   // 创建知识库
   const createKBMutation = useMutation({
@@ -67,8 +110,6 @@ export const KnowledgeBaseListPage: React.FC = () => {
     return Object.keys(tagDictionary).slice(0, 3); // 显示前3个顶级标签
   };
 
-
-
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -95,7 +136,7 @@ export const KnowledgeBaseListPage: React.FC = () => {
       </div>
 
       <Row gutter={[16, 16]}>
-        {KnowledgeBases?.map((kb) => {
+        {kbsWithStats.map((kb) => {
           const topTags = getTopLevelTags(kb.tag_dictionary);
 
           return (
@@ -113,24 +154,27 @@ export const KnowledgeBaseListPage: React.FC = () => {
                           key: 'manage',
                           icon: <SettingOutlined />,
                           label: '管理',
-                          onClick: () => handleManageKB(kb.id),
+                          onClick: ({ domEvent }) => {
+                            domEvent.stopPropagation();
+                            handleManageKB(kb.id);
+                          },
                         },
                         {
                           key: 'delete',
                           icon: <DeleteOutlined />,
-                          label: (
-                            <Popconfirm
-                              title="确认删除"
-                              description={`确定要删除知识库"${kb.name}"吗？此操作不可恢复。`}
-                              onConfirm={() => handleDeleteKB(kb.id)}
-                              okText="确认删除"
-                              cancelText="取消"
-                              okButtonProps={{ danger: true, loading: deleteKBMutation.isPending }}
-                            >
-                              <span>删除</span>
-                            </Popconfirm>
-                          ),
+                          label: '删除',
                           danger: true,
+                          onClick: ({ domEvent }) => {
+                            domEvent.stopPropagation();
+                            Modal.confirm({
+                              title: '确认删除',
+                              content: `确定要删除知识库"${kb.name}"吗？此操作不可恢复。`,
+                              okText: '确认删除',
+                              cancelText: '取消',
+                              okButtonProps: { danger: true },
+                              onOk: () => handleDeleteKB(kb.id),
+                            });
+                          },
                         },
                       ]
                     }}
@@ -155,11 +199,11 @@ export const KnowledgeBaseListPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <Space>
                       <FileTextOutlined className="text-gray-500" />
-                      <Text className="text-sm">文档: 0</Text>
+                      <Text className="text-sm">文档: {kb.stats?.document_count || 0}</Text>
                     </Space>
                     <Space>
                       <DatabaseOutlined className="text-gray-500" />
-                      <Text className="text-sm">片段: 0</Text>
+                      <Text className="text-sm">片段: {kb.stats?.chunk_count || 0}</Text>
                     </Space>
                   </div>
 
@@ -171,7 +215,7 @@ export const KnowledgeBaseListPage: React.FC = () => {
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {topTags.map((tag, index) => (
-                          <Tag key={index}  className="text-xs">
+                          <Tag key={index} className="text-xs">
                             {tag}
                           </Tag>
                         ))}
@@ -184,7 +228,7 @@ export const KnowledgeBaseListPage: React.FC = () => {
                       创建于 {new Date(kb.created_at).toLocaleDateString()}
                     </Text>
                     {kb.is_public && (
-                      <Tag color="green" >公开</Tag>
+                      <Tag color="green">公开</Tag>
                     )}
                   </div>
                 </Space>
@@ -194,7 +238,7 @@ export const KnowledgeBaseListPage: React.FC = () => {
         })}
       </Row>
 
-      {KnowledgeBases?.length === 0 && (
+      {kbsWithStats.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <DatabaseOutlined className="text-6xl text-gray-300 mb-4" />
           <Title level={3} type="secondary">还没有知识库</Title>

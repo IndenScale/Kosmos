@@ -5,11 +5,16 @@ class TextSplitter:
     def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self._json_splitter = None
     
     def split_text(self, text: str) -> List[str]:
         """将文本分割成chunks，保持页码标记与内容的关联"""
         if not text.strip():
             return []
+        
+        # 检查是否是JSON内容，如果是则使用专门的JSON分割器
+        if self._is_json_content(text):
+            return self._split_json_content(text)
         
         # 首先按页面分割
         page_sections = self._split_by_pages(text)
@@ -146,3 +151,32 @@ class TextSplitter:
         if len(text) <= self.chunk_overlap:
             return text
         return text[-self.chunk_overlap:]
+    
+    def _is_json_content(self, text: str) -> bool:
+        """检查是否是JSON内容"""
+        json_indicators = [
+            r'# JSON文件:',
+            r'# JSONL文件:',
+            r'## 行 \d+',
+            r'### 项目 \d+',
+            r'```json',
+            r'\*\*值:\*\*',
+            r'\*\*数组长度:\*\*'
+        ]
+        
+        for pattern in json_indicators:
+            if re.search(pattern, text):
+                return True
+        return False
+    
+    def _split_json_content(self, text: str) -> List[str]:
+        """使用专门的JSON分割器分割JSON内容"""
+        if self._json_splitter is None:
+            # 延迟导入避免循环依赖
+            from .json_text_splitter import JsonTextSplitter
+            self._json_splitter = JsonTextSplitter(
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap
+            )
+        
+        return self._json_splitter.split_text(text)

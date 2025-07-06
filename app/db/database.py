@@ -28,15 +28,8 @@ Base = declarative_base()
 
 # 创建数据库表
 def create_tables():
-    print("Current Base registry before create_all:")
-    for key, value in Base.registry._class_registry.items():
-        # 尝试获取 __module__ 和 __file__ 属性，如果不存在则跳过
-        module_name = getattr(value, '__module__', 'N/A')
-        file_path = getattr(value, '__file__', 'N/A')
-        print(f"  Class: {key}, Object: {value}, Module: {module_name}, File: {file_path}")
-
     Base.metadata.create_all(bind=engine)
-    print("Tables created.")
+    print("数据库表已创建。")
 
 # 获取数据库会话
 def get_db():

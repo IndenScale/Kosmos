@@ -52,6 +52,7 @@ class AsyncTaskQueue:
 
         self._running = True
         self._worker_task = asyncio.create_task(self._worker())
+        print(f"任务队列已启动，worker任务ID: {id(self._worker_task)}")
 
     async def stop(self):
         """停止队列处理器"""
@@ -88,6 +89,7 @@ class AsyncTaskQueue:
             self.tasks[task_id] = task
 
         await self.pending_queue.put(task_id)
+        print(f"任务已添加到队列: {task_id}, 队列大小: {self.pending_queue.qsize()}, 运行中: {len(self.running_tasks)}")
         return task_id
 
     def get_task_status(self, task_id: str) -> Optional[Task]:
@@ -114,25 +116,31 @@ class AsyncTaskQueue:
 
     async def _worker(self):
         """队列工作器"""
+        print("任务队列worker开始运行")
         while self._running:
             try:
                 # 检查是否可以处理新任务
                 if len(self.running_tasks) >= self.max_concurrent_tasks:
+                    print(f"达到最大并发任务数 {self.max_concurrent_tasks}，等待...")
                     await asyncio.sleep(0.1)
                     continue
 
                 # 获取待处理任务
                 try:
                     task_id = await asyncio.wait_for(self.pending_queue.get(), timeout=1.0)
+                    print(f"从队列获取任务: {task_id}")
                 except asyncio.TimeoutError:
+                    # 每秒检查一次队列状态
                     continue
 
                 with self._lock:
                     task = self.tasks.get(task_id)
 
                 if not task or task.status != TaskStatus.PENDING:
+                    print(f"任务不存在或状态异常: {task_id}")
                     continue
 
+                print(f"开始执行任务: {task_id}")
                 # 启动任务
                 asyncio_task = asyncio.create_task(self._execute_task(task))
                 self.running_tasks[task_id] = asyncio_task
@@ -140,6 +148,8 @@ class AsyncTaskQueue:
             except Exception as e:
                 print(f"队列工作器错误: {e}")
                 await asyncio.sleep(1)
+        
+        print("任务队列worker停止运行")
 
     async def _execute_task(self, task: Task):
         """执行单个任务"""

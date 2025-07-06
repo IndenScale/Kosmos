@@ -3,11 +3,15 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 from typing import List, Optional, Dict, Any
 import json
+import logging
 
 from app.models.knowledge_base import KnowledgeBase, KBMember, KBRole
 from app.models.user import User
 from app.schemas.knowledge_base import KBCreate, KBUpdate, KBMemberAdd, TagDictionaryUpdate
 from app.repositories.milvus_repo import MilvusRepository
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 class KBService:
     def __init__(self, db: Session):
@@ -183,6 +187,9 @@ class KBService:
 
     def update_tag_dictionary(self, kb_id: str, tag_data: TagDictionaryUpdate) -> KnowledgeBase:
         """更新标签字典"""
+        from sqlalchemy import inspect
+        from sqlalchemy.orm.attributes import flag_modified
+        
         kb = self.get_kb_by_id(kb_id)
         if not kb:
             raise HTTPException(
@@ -190,8 +197,26 @@ class KBService:
                 detail="Knowledge base not found"
             )
 
+        logger.debug("更新前对象状态调试:")
+        inspector = inspect(kb)
+        logger.debug(f"   对象状态: {inspector.persistent}")
+        logger.debug(f"   已修改字段: {inspector.modified}")
+        logger.debug(f"   当前标签字典: {kb.tag_dictionary}")
+        logger.debug(f"   当前字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
+
         if tag_data.tag_dictionary:
+            # 先保存旧字典用于比较
+            old_dict = kb.tag_dictionary
             kb.tag_dictionary = tag_data.tag_dictionary
+            
+            # 强制标记字段为已修改
+            flag_modified(kb, "tag_dictionary")
+            
+            logger.debug("字典更新对比:")
+            logger.debug(f"   旧字典大小: {len(str(old_dict)) if old_dict else 0} 字符")
+            logger.debug(f"   新字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
+            logger.debug(f"   字典是否相同: {old_dict == kb.tag_dictionary}")
+            
         else:
             # TODO: 使用LLM生成标签字典
             # 这里暂时返回一个示例字典
@@ -207,13 +232,45 @@ class KBService:
             }
             # 直接设置字典，让SQLAlchemy的类型转换器处理
             kb.tag_dictionary = sample_dict
+            # 强制标记字段为已修改
+            flag_modified(kb, "tag_dictionary")
 
         # 记录标签字典更新时间
-        from sqlalchemy.sql import func
-        kb.last_tag_directory_update_time = func.now()
+        from datetime import datetime
+        kb.last_tag_directory_update_time = datetime.now()
+        
+        logger.debug("更新后对象状态调试:")
+        inspector = inspect(kb)
+        logger.debug(f"   对象状态: {inspector.persistent}")
+        logger.debug(f"   已修改字段: {inspector.modified}")
+        logger.debug(f"   pending标识: {inspector.pending}")
+        
+        logger.info(f"更新标签字典: KB {kb_id}")
+        logger.info(f"   新字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
+        logger.info(f"   更新时间: {kb.last_tag_directory_update_time}")
 
-        self.db.commit()
-        self.db.refresh(kb)
+        try:
+            logger.debug("执行数据库提交...")
+            self.db.commit()
+            logger.debug("数据库提交成功")
+            
+            logger.debug("刷新对象状态...")
+            self.db.refresh(kb)
+            logger.debug("对象状态刷新成功")
+            
+        except Exception as e:
+            logger.error(f"数据库操作失败: {e}")
+            self.db.rollback()
+            raise e
+        
+        logger.info("标签字典已成功保存到数据库")
+        
+        # 验证更新结果
+        logger.debug("最终验证:")
+        logger.debug(f"   更新后字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
+        if kb.tag_dictionary and len(str(kb.tag_dictionary)) > 100:
+            logger.debug(f"   字典前100字符: {str(kb.tag_dictionary)[:100]}...")
+        
         return kb
 
     def get_outdated_documents(self, kb_id: str) -> List[dict]:

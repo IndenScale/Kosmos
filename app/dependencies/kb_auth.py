@@ -80,3 +80,17 @@ def get_kb_or_public(
             detail="Knowledge base is private and user is not a member"
         )
     return current_user
+
+def verify_kb_access(
+    kb_id: str = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """验证用户对知识库的访问权限（通用权限检查）"""
+    role = get_kb_member_role(kb_id, current_user.id, db)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not a member of this knowledge base"
+        )
+    return None  # 返回None表示验证通过，用作依赖项

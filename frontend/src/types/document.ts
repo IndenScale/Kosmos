@@ -65,7 +65,11 @@ export enum DocumentStatus {
   NOT_INGESTED = 'not_ingested',
   INGESTING = 'ingesting',
   INGESTED = 'ingested',
-  OUTDATED = 'outdated'
+  INGESTED_NOT_TAGGED = 'ingested_not_tagged',  // 已摄入但未标注
+  TAGGING = 'tagging',                         // 标注中
+  TAGGED = 'tagged',                           // 已标注
+  OUTDATED = 'outdated',                       // 标签过时
+  TAGGING_OUTDATED = 'tagging_outdated'        // 标注过时
 }
 
 // 文档操作类型
@@ -73,6 +77,8 @@ export enum DocumentAction {
   PREVIEW = 'preview',
   DOWNLOAD = 'download',
   INGEST = 'ingest',
+  TAG = 'tag',           // 标注
+  RETAG = 'retag',       // 重新标注
   DELETE = 'delete'
 }
 
@@ -80,5 +86,6 @@ export enum DocumentAction {
 export enum BatchAction {
   DOWNLOAD = 'download',
   INGEST = 'ingest',
+  TAG = 'tag',           // 批量标注
   DELETE = 'delete'
 }

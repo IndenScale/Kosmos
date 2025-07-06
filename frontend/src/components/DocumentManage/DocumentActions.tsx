@@ -6,7 +6,9 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   StopOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  TagOutlined,
+  TagsOutlined
 } from '@ant-design/icons';
 import { DocumentStatus } from '../../types/document';
 
@@ -19,10 +21,14 @@ interface DocumentActionsProps {
   onDownload: (documentId: string, filename: string) => void;
   onIngest: (documentId: string) => void;
   onReIngest: (documentId: string) => void;
+  onTag: (documentId: string) => void;
+  onReTag: (documentId: string) => void;
   onCancel: (documentId: string) => void;
   onDelete: (documentId: string) => void;
   ingestLoading?: boolean;
+  taggingLoading?: boolean;
   isProcessing?: boolean;
+  isTagging?: boolean;
 }
 
 export const DocumentActions: React.FC<DocumentActionsProps> = ({
@@ -34,13 +40,19 @@ export const DocumentActions: React.FC<DocumentActionsProps> = ({
   onDownload,
   onIngest,
   onReIngest,
+  onTag,
+  onReTag,
   onCancel,
   onDelete,
   ingestLoading = false,
-  isProcessing = false
+  taggingLoading = false,
+  isProcessing = false,
+  isTagging = false
 }) => {
   const canIngest = status === DocumentStatus.NOT_INGESTED;
   const canReIngest = status === DocumentStatus.OUTDATED;
+  const canTag = status === DocumentStatus.INGESTED_NOT_TAGGED;
+  const canReTag = status === DocumentStatus.TAGGING_OUTDATED || status === DocumentStatus.TAGGED;
 
   return (
     <Space>
@@ -76,6 +88,27 @@ export const DocumentActions: React.FC<DocumentActionsProps> = ({
           disabled={ingestLoading}
         >
           重新摄取
+        </Button>
+      )}
+      {canTag && (
+        <Button
+          size="small"
+          icon={<TagOutlined />}
+          onClick={() => onTag(documentId)}
+          disabled={taggingLoading}
+          type="default"
+        >
+          标注
+        </Button>
+      )}
+      {canReTag && (
+        <Button
+          size="small"
+          icon={<TagsOutlined />}
+          onClick={() => onReTag(documentId)}
+          disabled={taggingLoading}
+        >
+          重新标注
         </Button>
       )}
       {canCancel && (

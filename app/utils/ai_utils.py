@@ -6,6 +6,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def get_openai_client():
+    """获取OpenAI客户端实例"""
+    return openai.OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_BASE_URL")
+    )
+
 class AIUtils:
     def __init__(self):
         self.openai_client = openai.OpenAI(

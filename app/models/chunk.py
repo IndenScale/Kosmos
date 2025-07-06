@@ -1,6 +1,5 @@
 # app/models/chunk.py
 import sys
-print(f"DEBUG: module {__name__} is being loaded. sys.modules['{__name__}'] is: {sys.modules.get(__name__)}")
 from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -14,7 +13,7 @@ class Chunk(Base):
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)
     chunk_index = Column(Integer, nullable=False)  # 在文档中的顺序
     content = Column(Text, nullable=False)  # 片段的文本内容 (Markdown格式)
-    tags = Column(Text, nullable=False)  # LLM生成的标签 (JSON数组格式)
+    tags = Column(Text, nullable=True)  # LLM生成的标签 (JSON数组格式)
     page_screenshot_ids = Column(Text, nullable=True)  # 关联的页面截图ID列表 (JSON数组格式)
     created_at = Column(DateTime, default=func.now())
 

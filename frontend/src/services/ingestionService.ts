@@ -15,10 +15,13 @@ export class IngestionService {
   /**
    * 启动文档摄取/重摄入任务（合并索引和重索引功能）
    */
-  async processDocument(kbId: string, documentId: string, forceReingest: boolean = false): Promise<IngestionStartResponse> {
+  async processDocument(kbId: string, documentId: string, forceReingest: boolean = false, skipTagging: boolean = true): Promise<IngestionStartResponse> {
     const endpoint = forceReingest ? 'reingest' : 'ingest';
+    const params = { skip_tagging: skipTagging };
     const response = await apiClient.post(
-      `${this.baseUrl}/kbs/${kbId}/documents/${documentId}/${endpoint}`
+      `${this.baseUrl}/kbs/${kbId}/documents/${documentId}/${endpoint}`,
+      {},
+      { params }
     );
     return response.data;
   }
@@ -26,8 +29,8 @@ export class IngestionService {
   /**
    * 批量处理文档（智能选择摄取或重摄入）
    */
-  async processBatchDocuments(kbId: string, documentIds: string[], forceReingest: boolean = false): Promise<BatchIngestionResponse> {
-    const promises = documentIds.map(id => this.processDocument(kbId, id, forceReingest));
+  async processBatchDocuments(kbId: string, documentIds: string[], forceReingest: boolean = false, skipTagging: boolean = true): Promise<BatchIngestionResponse> {
+    const promises = documentIds.map(id => this.processDocument(kbId, id, forceReingest, skipTagging));
     const results = await Promise.allSettled(promises);
 
     const jobs: IngestionStartResponse[] = [];
@@ -94,6 +97,21 @@ export class IngestionService {
    */
   async cancelJob(jobId: string): Promise<void> {
     await apiClient.post(`${this.baseUrl}/jobs/${jobId}/cancel`);
+  }
+
+  /**
+   * 获取知识库的摄入统计信息
+   */
+  async getIngestionStats(kbId: string): Promise<{
+    total_chunks: number;
+    tagged_chunks: number;
+    untagged_chunks: number;
+    tagging_completion_rate: number;
+    ready_for_sdtm: boolean;
+    ready_for_tagging_service: boolean;
+  }> {
+    const response = await apiClient.get(`${this.baseUrl}/kbs/${kbId}/ingestion-stats`);
+    return response.data;
   }
 }
 

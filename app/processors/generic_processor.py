@@ -12,7 +12,7 @@ class GenericProcessor(BaseProcessor):
         self.md = MarkItDown(enable_plugins=False)
         self.supported_extensions = [
             '.txt', '.pdf', '.xlsx', '.xls', '.pptx', '.ppt',
-            '.csv', '.json', '.xml', '.html', '.htm', '.md'  # 添加 .md 支持
+            '.csv', '.xml', '.html', '.htm', '.md'  # 移除 .json，由专门的JSON处理器处理
         ]
     
     def can_process(self, file_path: str) -> bool:

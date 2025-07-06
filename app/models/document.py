@@ -1,6 +1,5 @@
 # app/models/document
 import sys
-print(f"DEBUG: module {__name__} is being loaded. sys.modules['{__name__}'] is: {sys.modules.get(__name__)}")
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

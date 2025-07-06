@@ -68,3 +68,25 @@ class ChunkRepository:
     def get_kb_chunk_count(self, kb_id: str) -> int:
         """获取知识库chunk数量"""
         return self.db.query(Chunk).filter(Chunk.kb_id == kb_id).count()
+    
+    def get_chunks_by_ids(self, chunk_ids: List[str]) -> List[Chunk]:
+        """根据ID列表获取chunks"""
+        return self.db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
+    
+    def get_untagged_chunks(self, kb_id: str) -> List[Chunk]:
+        """获取没有标签的chunks"""
+        chunks = self.db.query(Chunk).filter(Chunk.kb_id == kb_id).all()
+        
+        untagged_chunks = []
+        for chunk in chunks:
+            if not chunk.tags:
+                untagged_chunks.append(chunk)
+            else:
+                try:
+                    tags = json.loads(chunk.tags) if isinstance(chunk.tags, str) else chunk.tags
+                    if not tags or len(tags) == 0:
+                        untagged_chunks.append(chunk)
+                except (json.JSONDecodeError, TypeError):
+                    untagged_chunks.append(chunk)
+        
+        return untagged_chunks

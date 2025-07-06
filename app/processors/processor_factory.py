@@ -5,6 +5,7 @@ from .pptx_processor import PptxProcessor
 from .pdf_processor import PDFProcessor
 from .image_processor import ImageProcessor
 from .code_processor import CodeProcessor
+from .json_processor import JsonProcessor
 from .generic_processor import GenericProcessor
 
 class ProcessorFactory:
@@ -17,6 +18,7 @@ class ProcessorFactory:
             PptxProcessor(),
             ImageProcessor(),
             CodeProcessor(),
+            JsonProcessor(),  # JSON处理器，专门处理JSON和JSONL文件
             GenericProcessor()  # 通用处理器作为后备
         ]
     

@@ -74,12 +74,15 @@ tmp/
 
 # Data files (可根据需要调整)
 data/images/*
+!data/images
+data/screenshots/*
+!data/screenshots
 data/db/*
 !data/db
 data/documents/*
 !data/documents
 examples/*
-
+!examples
 
 # Environment specific
 .env.local
@@ -127,3 +130,6 @@ cython_debug/
 
 # Node
 frontend/node_modules/
+
+# nohup
+*.pid

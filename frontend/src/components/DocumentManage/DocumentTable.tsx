@@ -15,6 +15,13 @@ interface DocumentTableProps {
   selectionState: SelectionState;
   documentJobStatuses: Map<string, DocumentJobStatus>;
   lastTagDirectoryUpdateTime?: string;
+  ingestionStats?: {
+    total_chunks: number;
+    tagged_chunks: number;
+    untagged_chunks: number;
+    tagging_completion_rate: number;
+  };
+  taggingJobStatuses?: Map<string, any>;
   onSelectionChange: (selectedRowKeys: string[]) => void;
   onSelectAll: () => void;
   onSelectNone: () => void;
@@ -22,9 +29,12 @@ interface DocumentTableProps {
   onDownload: (documentId: string, filename: string) => void;
   onIngest: (documentId: string) => void;
   onReIngest: (documentId: string) => void;
+  onTag: (documentId: string) => void;
+  onReTag: (documentId: string) => void;
   onCancel: (documentId: string) => void;
   onDelete: (documentId: string) => void;
   ingestLoading?: boolean;
+  taggingLoading?: boolean;
 }
 
 export const DocumentTable: React.FC<DocumentTableProps> = ({
@@ -35,6 +45,8 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   selectionState,
   documentJobStatuses,
   lastTagDirectoryUpdateTime,
+  ingestionStats,
+  taggingJobStatuses,
   onSelectionChange,
   onSelectAll,
   onSelectNone,
@@ -42,9 +54,12 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   onDownload,
   onIngest,
   onReIngest,
+  onTag,
+  onReTag,
   onCancel,
   onDelete,
-  ingestLoading = false
+  ingestLoading = false,
+  taggingLoading = false
 }) => {
   const rowSelection: TableRowSelection<DocumentRecord> = {
     selectedRowKeys,
@@ -103,7 +118,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       title: '状态',
       key: 'status',
       render: (_: any, record: DocumentRecord) => {
-        const status = getDocumentStatus(record, documentJobStatuses, lastTagDirectoryUpdateTime);
+        const status = getDocumentStatus(record, documentJobStatuses, lastTagDirectoryUpdateTime, ingestionStats, taggingJobStatuses);
         const jobStatus = documentJobStatuses.get(record.document_id);
         const progress = getJobProgress(record.document_id, documentJobStatuses);
 
@@ -121,9 +136,10 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       title: '操作',
       key: 'actions',
       render: (_: any, record: DocumentRecord) => {
-        const status = getDocumentStatus(record, documentJobStatuses, lastTagDirectoryUpdateTime);
+        const status = getDocumentStatus(record, documentJobStatuses, lastTagDirectoryUpdateTime, ingestionStats, taggingJobStatuses);
         const jobStatus = documentJobStatuses.get(record.document_id);
         const isProcessing = status === DocumentStatus.INGESTING;
+        const isTagging = status === DocumentStatus.TAGGING;
         const canCancel = isProcessing && !!jobStatus?.job_id;
 
         return (
@@ -136,10 +152,14 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
             onDownload={onDownload}
             onIngest={onIngest}
             onReIngest={onReIngest}
+            onTag={onTag}
+            onReTag={onReTag}
             onCancel={onCancel}
             onDelete={onDelete}
             ingestLoading={ingestLoading}
+            taggingLoading={taggingLoading}
             isProcessing={isProcessing}
+            isTagging={isTagging}
           />
         );
       },

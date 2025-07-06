@@ -17,6 +17,7 @@ import { KBDetail } from '../../types/knowledgeBase';
 // 导入服务
 import { documentService } from '../../services/documentService';
 import { ingestionService } from '../../services/ingestionService';
+import { taggingService } from '../../services/taggingService';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
 
 // 导入组件
@@ -37,6 +38,7 @@ export const KBDocumentManagePage: React.FC = () => {
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [documentJobStatuses, setDocumentJobStatuses] = useState<Map<string, DocumentJobStatus>>(new Map());
+  const [taggingJobStatuses, setTaggingJobStatuses] = useState<Map<string, any>>(new Map());
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DocumentRecord | null>(null);
 
@@ -63,6 +65,15 @@ export const KBDocumentManagePage: React.FC = () => {
     refetchIntervalInBackground: true,
   });
 
+  // 获取摄入统计信息
+  const { data: ingestionStats } = useQuery({
+    queryKey: ['ingestionStats', kbId],
+    queryFn: () => ingestionService.getIngestionStats(kbId!),
+    enabled: !!kbId,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  });
+
   // 更新文档任务状态映射
   useEffect(() => {
     if (jobStatuses) {
@@ -74,15 +85,16 @@ export const KBDocumentManagePage: React.FC = () => {
     }
   }, [jobStatuses]);
 
-  // 计算过时文档
+  // 计算过时文档（包括摄取过时和标注过时）
   const outdatedDocuments = useMemo(() => {
     if (!documentsData?.documents || !kbDetail?.last_tag_directory_update_time) {
       return [];
     }
-    return documentsData.documents.filter((doc: DocumentRecord) =>
-      isDocumentOutdated(doc, kbDetail.last_tag_directory_update_time)
-    );
-  }, [documentsData, kbDetail]);
+    return documentsData.documents.filter((doc: DocumentRecord) => {
+      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail.last_tag_directory_update_time, ingestionStats, taggingJobStatuses);
+      return status === DocumentStatus.OUTDATED || status === DocumentStatus.TAGGING_OUTDATED;
+    });
+  }, [documentsData, kbDetail, documentJobStatuses, ingestionStats, taggingJobStatuses]);
 
   // 计算选择状态
   const selectionState = useMemo(() => {
@@ -175,6 +187,37 @@ export const KBDocumentManagePage: React.FC = () => {
     },
   });
 
+  const tagMutation = useMutation({
+    mutationFn: (documentId: string) => taggingService.tagDocument(kbId!, documentId),
+    onSuccess: () => {
+      message.success('标注任务已启动');
+      queryClient.invalidateQueries({ queryKey: ['ingestionStats', kbId] });
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '标注启动失败');
+    },
+  });
+
+  const batchTagMutation = useMutation({
+    mutationFn: (documentIds: string[]) => taggingService.tagDocuments(kbId!, documentIds),
+    onSuccess: (results) => {
+      const successCount = results.filter(r => r.success).length;
+      const failedCount = results.length - successCount;
+      
+      if (successCount > 0) {
+        message.success(`已启动 ${successCount} 个文档的标注任务`);
+      }
+      if (failedCount > 0) {
+        message.warning(`${failedCount} 个文档标注启动失败`);
+      }
+      setSelectedRowKeys([]);
+      queryClient.invalidateQueries({ queryKey: ['ingestionStats', kbId] });
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.detail || '批量标注启动失败');
+    },
+  });
+
   // 事件处理函数
   const handleSelectionChange = useCallback((newSelectedRowKeys: string[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -202,13 +245,17 @@ export const KBDocumentManagePage: React.FC = () => {
     ) || [];
 
     const ingestableDocs = selectedDocs.filter((doc: DocumentRecord) => {
-      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time);
+      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time, ingestionStats, taggingJobStatuses);
       return status === DocumentStatus.NOT_INGESTED;
     });
 
     const reIndexableDocs = selectedDocs.filter((doc: DocumentRecord) => {
-      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time);
-      return status === DocumentStatus.INGESTED || status === DocumentStatus.OUTDATED;
+      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time, ingestionStats, taggingJobStatuses);
+      return status === DocumentStatus.INGESTED || 
+             status === DocumentStatus.INGESTED_NOT_TAGGED || 
+             status === DocumentStatus.TAGGED || 
+             status === DocumentStatus.TAGGING_OUTDATED || 
+             status === DocumentStatus.OUTDATED;
     });
 
     if (ingestableDocs.length === 0 && reIndexableDocs.length === 0) {
@@ -348,6 +395,39 @@ export const KBDocumentManagePage: React.FC = () => {
     });
   }, [batchProcessMutation]);
 
+  const handleTag = useCallback((documentId: string) => {
+    tagMutation.mutate(documentId);
+  }, [tagMutation]);
+
+  const handleReTag = useCallback((documentId: string) => {
+    tagMutation.mutate(documentId);
+  }, [tagMutation]);
+
+  const handleBatchTag = useCallback(() => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要标注的文档');
+      return;
+    }
+
+    const selectedDocs = documentsData?.documents?.filter(
+      (doc: DocumentRecord) => selectedRowKeys.includes(doc.document_id)
+    ) || [];
+
+    const tagableDocs = selectedDocs.filter((doc: DocumentRecord) => {
+      const status = getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time, ingestionStats, taggingJobStatuses);
+      return status === DocumentStatus.INGESTED_NOT_TAGGED || 
+             status === DocumentStatus.TAGGED || 
+             status === DocumentStatus.TAGGING_OUTDATED;
+    });
+
+    if (tagableDocs.length === 0) {
+      message.warning('选中的文档中没有可以标注的文档');
+      return;
+    }
+
+    batchTagMutation.mutate(tagableDocs.map(doc => doc.document_id));
+  }, [selectedRowKeys, documentsData, documentJobStatuses, kbDetail, ingestionStats, taggingJobStatuses, batchTagMutation]);
+
   // 上传配置
   const uploadProps: UploadProps = {
     name: 'files',
@@ -372,16 +452,21 @@ export const KBDocumentManagePage: React.FC = () => {
         selectedCount={selectedRowKeys.length}
         onBatchDownload={handleBatchDownload}
         onBatchProcess={handleBatchProcess}
+        onBatchTag={handleBatchTag}
         onBatchDelete={handleBatchDelete}
         uploadProps={uploadProps}
         batchProcessLoading={batchProcessMutation.isPending}
+        batchTagLoading={batchTagMutation.isPending}
         batchDeleteLoading={batchDeleteMutation.isPending}
       />
 
       <OutdatedDocumentsAlert
         outdatedDocuments={outdatedDocuments}
         onBatchReIngest={handleBatchReIngest}
+        onBatchReTag={handleBatchTag}
+        getDocumentStatus={(doc) => getDocumentStatus(doc, documentJobStatuses, kbDetail?.last_tag_directory_update_time, ingestionStats, taggingJobStatuses)}
         loading={batchProcessMutation.isPending}
+        taggingLoading={batchTagMutation.isPending}
       />
 
       <DocumentTable
@@ -392,6 +477,8 @@ export const KBDocumentManagePage: React.FC = () => {
         selectionState={selectionState}
         documentJobStatuses={documentJobStatuses}
         lastTagDirectoryUpdateTime={kbDetail?.last_tag_directory_update_time}
+        ingestionStats={ingestionStats}
+        taggingJobStatuses={taggingJobStatuses}
         onSelectionChange={handleSelectionChange}
         onSelectAll={handleSelectAll}
         onSelectNone={handleSelectNone}
@@ -399,9 +486,12 @@ export const KBDocumentManagePage: React.FC = () => {
         onDownload={handleDownload}
         onIngest={(documentId) => ingestMutation.mutate({ documentId })}
         onReIngest={(documentId) => ingestMutation.mutate({ documentId, forceReingest: true })}
+        onTag={handleTag}
+        onReTag={handleReTag}
         onCancel={handleCancelJob}
         onDelete={(documentId) => deleteMutation.mutate(documentId)}
         ingestLoading={ingestMutation.isPending}
+        taggingLoading={tagMutation.isPending}
       />
 
       <UploadModal

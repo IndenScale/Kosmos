@@ -4,7 +4,8 @@ import {
   UploadOutlined,
   DownloadOutlined,
   DeleteOutlined,
-  PlayCircleOutlined
+  PlayCircleOutlined,
+  TagOutlined
 } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 
@@ -12,9 +13,11 @@ interface DocumentToolbarProps {
   selectedCount: number;
   onBatchDownload: () => void;
   onBatchProcess: () => void;
+  onBatchTag: () => void;
   onBatchDelete: () => void;
   uploadProps: UploadProps;
   batchProcessLoading?: boolean;
+  batchTagLoading?: boolean;
   batchDeleteLoading?: boolean;
 }
 
@@ -22,9 +25,11 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({
   selectedCount,
   onBatchDownload,
   onBatchProcess,
+  onBatchTag,
   onBatchDelete,
   uploadProps,
   batchProcessLoading = false,
+  batchTagLoading = false,
   batchDeleteLoading = false
 }) => {
   return (
@@ -45,7 +50,15 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({
           disabled={selectedCount === 0 || batchProcessLoading}
           loading={batchProcessLoading}
         >
-          批量处理 ({selectedCount})
+          批量摄取 ({selectedCount})
+        </Button>
+        <Button
+          icon={<TagOutlined />}
+          onClick={onBatchTag}
+          disabled={selectedCount === 0 || batchTagLoading}
+          loading={batchTagLoading}
+        >
+          批量标注 ({selectedCount})
         </Button>
         <Button
           danger

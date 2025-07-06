@@ -2,7 +2,9 @@ import React from 'react';
 import { Tag, Progress, Space } from 'antd';
 import {
   LoadingOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  TagOutlined,
+  TagsOutlined
 } from '@ant-design/icons';
 import { DocumentStatus } from '../../types/document';
 import { IngestionJobStatus } from '../../types/ingestion';
@@ -47,6 +49,49 @@ export const DocumentStatusTag: React.FC<DocumentStatusTagProps> = ({
         <Tag color="success">
           已摄取 ({chunkCount} 块)
         </Tag>
+      );
+    case DocumentStatus.INGESTED_NOT_TAGGED:
+      return (
+        <Space>
+          <Tag color="success">
+            已摄取 ({chunkCount} 块)
+          </Tag>
+          <Tag icon={<TagOutlined />} color="orange">
+            需要标注
+          </Tag>
+        </Space>
+      );
+    case DocumentStatus.TAGGING:
+      return (
+        <div>
+          <Tag icon={<LoadingOutlined />} color="processing">
+            标注中
+          </Tag>
+          {progress !== undefined && (
+            <Progress
+              percent={progress}
+              size="small"
+              style={{ width: 100, marginTop: 4 }}
+            />
+          )}
+        </div>
+      );
+    case DocumentStatus.TAGGED:
+      return (
+        <Tag icon={<TagsOutlined />} color="green">
+          已标注 ({chunkCount} 块)
+        </Tag>
+      );
+    case DocumentStatus.TAGGING_OUTDATED:
+      return (
+        <Space>
+          <Tag icon={<TagsOutlined />} color="green">
+            已标注 ({chunkCount} 块)
+          </Tag>
+          <Tag icon={<ExclamationCircleOutlined />} color="gold">
+            标注过时
+          </Tag>
+        </Space>
       );
     case DocumentStatus.OUTDATED:
       return (

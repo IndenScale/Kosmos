@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, create_tables
-from app.routers import auth, knowledge_bases, documents, ingestion, search, screenshots
+from app.routers import auth, knowledge_bases, documents, ingestion, search, screenshots, sdtm, tagging
 from app.utils.task_queue import task_queue
 
 import app.models.user
@@ -61,6 +61,8 @@ app.include_router(documents.router)
 app.include_router(ingestion.router)
 app.include_router(search.router)
 app.include_router(screenshots.router)
+app.include_router(sdtm.router)
+app.include_router(tagging.router)
 
 @app.get("/")
 def read_root():

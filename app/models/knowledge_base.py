@@ -1,18 +1,7 @@
 #app/models/knowledge_base.py
 import sys
-print(f"DEBUG: module {__name__} is being loaded. sys.modules['{__name__}'] is: {sys.modules.get(__name__)}")
-import sys
 import os
-
-# 获取当前文件的完整路径
-current_file_path = os.path.abspath(__file__)
-
-print(f"DEBUG: app/models/knowledge_base.py 模块开始加载 (文件: {current_file_path}).")
-print(f"DEBUG: sys.path: {sys.path}")
-print(f"DEBUG: sys.modules contains 'app.models.knowledge_base': {'app.models.knowledge_base' in sys.modules}")
-print(f"DEBUG: sys.modules['app.models.knowledge_base'] is: {sys.modules.get('app.models.knowledge_base')}")
-
-
+import logging
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text,TypeDecorator, TEXT
 from sqlalchemy.types import JSON
 import json
@@ -21,6 +10,9 @@ from sqlalchemy.sql import func
 from app.db.database import Base
 import uuid
 import enum
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 class KBRole(enum.Enum):
     OWNER = "owner"
@@ -34,29 +26,45 @@ class JSONEncodedDict(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is not None:
             if isinstance(value, dict):
-                return json.dumps(value, ensure_ascii=False)
+                try:
+                    json_str = json.dumps(value, ensure_ascii=False)
+                    logger.debug(f"字典序列化成功，JSON长度: {len(json_str)} 字符")
+                    return json_str
+                except Exception as e:
+                    logger.error(f"字典序列化失败: {e}")
+                    raise e
             elif isinstance(value, str):
                 # 如果已经是字符串，先验证是否为有效JSON
                 try:
-                    json.loads(value)
+                    parsed = json.loads(value)
+                    logger.debug(f"字符串验证为有效JSON，长度: {len(value)} 字符")
                     return value
-                except (json.JSONDecodeError, TypeError):
-                    return "{}"
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"字符串不是有效JSON: {e}")
+                    raise ValueError(f"无效的JSON字符串: {e}")
             else:
-                return "{}"
+                logger.error(f"不支持的数据类型: {type(value)}")
+                raise TypeError(f"不支持的数据类型: {type(value)}")
+        
+        logger.debug("输入值为None，返回空字典")
         return "{}"
 
     def process_result_value(self, value, dialect):
         if value:
             try:
-                return json.loads(value)
-            except (TypeError, json.JSONDecodeError):
+                parsed = json.loads(value)
+                logger.debug(f"JSON解析成功，字典键数: {len(parsed) if isinstance(parsed, dict) else 'N/A'}")
+                return parsed
+            except (TypeError, json.JSONDecodeError) as e:
+                logger.error(f"JSON解析失败: {e}")
                 return {}
+        
+        logger.debug("数据库值为空，返回空字典")
         return {}
 
 class KnowledgeBase(Base):
     __tablename__ = 'knowledge_bases'
-    __table_args__ = {'extend_existing': True}  # 添加这行解决表重复定义问题
+    __table_args__ = {'extend_existing': True}
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
@@ -72,7 +80,7 @@ class KnowledgeBase(Base):
     # 关系
     owner = relationship("User", back_populates="owned_kbs")
     members = relationship("KBMember", back_populates="knowledge_base", cascade="all, delete-orphan")
-print("DEBUG: Defining KnowledgeBase class...") # <-- 添加这行
+
 class KBMember(Base):
     __tablename__ = "kb_members"
     __table_args__ = {'extend_existing': True}
@@ -84,5 +92,3 @@ class KBMember(Base):
     # 关系
     knowledge_base = relationship("KnowledgeBase", back_populates="members")
     user = relationship("User", back_populates="kb_memberships")
-
-print("DEBUG: Defining KBMember class...") # <-- 添加这行
