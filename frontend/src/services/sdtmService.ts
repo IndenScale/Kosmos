@@ -51,6 +51,11 @@ export interface OptimizeRequest {
   mode: 'edit' | 'annotate' | 'shadow';
   batch_size: number;
   auto_apply: boolean;
+  abnormal_doc_slots?: number;
+  normal_doc_slots?: number;
+  max_iterations?: number;
+  abnormal_doc_threshold?: number;
+  enable_early_termination?: boolean;
 }
 
 export interface OptimizeResponse {
@@ -90,7 +95,12 @@ class SDTMService {
     const response = await apiClient.post(`/api/v1/sdtm/${request.kb_id}/optimize`, {
       mode: request.mode,
       batch_size: request.batch_size,
-      auto_apply: request.auto_apply
+      auto_apply: request.auto_apply,
+      abnormal_doc_slots: request.abnormal_doc_slots,
+      normal_doc_slots: request.normal_doc_slots,
+      max_iterations: request.max_iterations,
+      abnormal_doc_threshold: request.abnormal_doc_threshold,
+      enable_early_termination: request.enable_early_termination
     });
     return response.data;
   }

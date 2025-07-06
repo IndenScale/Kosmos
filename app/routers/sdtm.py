@@ -56,7 +56,12 @@ async def optimize_tag_dictionary(
             kb_id=kb_id,
             mode=request.mode,
             batch_size=request.batch_size,
-            auto_apply=request.auto_apply
+            auto_apply=request.auto_apply,
+            abnormal_doc_slots=request.abnormal_doc_slots,
+            normal_doc_slots=request.normal_doc_slots,
+            max_iterations=request.max_iterations,
+            abnormal_doc_threshold=request.abnormal_doc_threshold,
+            enable_early_termination=request.enable_early_termination
         )
         
         return {

@@ -51,7 +51,12 @@ class SDTMService:
         kb_id: str, 
         mode: SDTMMode, 
         batch_size: int = 10, 
-        auto_apply: bool = True
+        auto_apply: bool = True,
+        abnormal_doc_slots: int = 3,
+        normal_doc_slots: int = 7,
+        max_iterations: int = 50,
+        abnormal_doc_threshold: float = 3.0,
+        enable_early_termination: bool = True
     ) -> str:
         """启动SDTM任务（异步处理）
         
@@ -60,6 +65,11 @@ class SDTMService:
             mode: 处理模式
             batch_size: 批处理大小
             auto_apply: 是否自动应用操作
+            abnormal_doc_slots: 异常文档处理槽位
+            normal_doc_slots: 正常文档处理槽位
+            max_iterations: 最大迭代次数
+            abnormal_doc_threshold: 异常文档阈值（百分比）
+            enable_early_termination: 是否启用提前终止
             
         Returns:
             任务ID
@@ -90,6 +100,8 @@ class SDTMService:
             task_id = await task_queue.add_task(
                 self._run_sdtm_sync,
                 job_id, kb_id, mode, batch_size, auto_apply,
+                abnormal_doc_slots, normal_doc_slots, max_iterations,
+                abnormal_doc_threshold, enable_early_termination,
                 timeout=600  # 10分钟超时
             )
 
@@ -114,7 +126,12 @@ class SDTMService:
         kb_id: str, 
         mode: SDTMMode, 
         batch_size: int, 
-        auto_apply: bool
+        auto_apply: bool,
+        abnormal_doc_slots: int = 3,
+        normal_doc_slots: int = 7,
+        max_iterations: int = 50,
+        abnormal_doc_threshold: float = 3.0,
+        enable_early_termination: bool = True
     ):
         """同步版本的SDTM处理（在线程池中运行）"""
         # 创建新的数据库会话
@@ -149,7 +166,12 @@ class SDTMService:
                         kb_id=kb_id,
                         mode=mode,
                         batch_size=batch_size,
-                        auto_apply=auto_apply
+                        auto_apply=auto_apply,
+                        max_iterations=max_iterations,
+                        abnormal_doc_slots=abnormal_doc_slots,
+                        normal_doc_slots=normal_doc_slots,
+                        abnormal_doc_threshold=abnormal_doc_threshold,
+                        enable_early_termination=enable_early_termination
                     )
                 )
                 sdtm_result = result
@@ -399,7 +421,11 @@ class SDTMService:
         mode: SDTMMode,
         batch_size: int = 10,
         max_iterations: int = 100,
-        auto_apply: bool = True
+        auto_apply: bool = True,
+        abnormal_doc_slots: int = 3,
+        normal_doc_slots: int = 7,
+        abnormal_doc_threshold: float = 3.0,
+        enable_early_termination: bool = True
     ) -> Dict[str, Any]:
         """处理知识库 - 主要入口点"""
         

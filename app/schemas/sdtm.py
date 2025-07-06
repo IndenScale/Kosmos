@@ -35,6 +35,13 @@ class TagDictionaryOptimizeRequest(BaseModel):
     mode: SDTMMode = Field(default=SDTMMode.EDIT, description="运行模式")
     batch_size: int = Field(default=10, description="批处理大小")
     auto_apply: bool = Field(default=False, description="是否自动应用编辑操作")
+    # 批处理配置
+    abnormal_doc_slots: int = Field(default=3, description="异常文档处理槽位")
+    normal_doc_slots: int = Field(default=7, description="正常文档处理槽位")
+    # 终止条件配置
+    max_iterations: int = Field(default=50, description="最大迭代次数")
+    abnormal_doc_threshold: float = Field(default=3.0, description="异常文档数量阈值（百分比）")
+    enable_early_termination: bool = Field(default=True, description="是否启用提前终止")
 
 class TagDictionaryOptimizeResponse(BaseModel):
     """标签字典优化响应"""

@@ -38,6 +38,33 @@ export const KBSDTMPage: React.FC = () => {
   const [processMode, setProcessMode] = useState<'edit' | 'annotate' | 'shadow'>('edit');
   const [batchSize, setBatchSize] = useState(10);
   const [autoApply, setAutoApply] = useState(true);
+  
+  // 批处理配置
+  const [abnormalDocSlots, setAbnormalDocSlots] = useState(3);
+  const [normalDocSlots, setNormalDocSlots] = useState(7);
+  
+  // 终止条件配置
+  const [maxIterations, setMaxIterations] = useState(50);
+  const [abnormalDocThreshold, setAbnormalDocThreshold] = useState(3);
+  const [enableEarlyTermination, setEnableEarlyTermination] = useState(true);
+
+  // 槽位自动计算
+  const handleAbnormalDocSlotsChange = (value: number | null) => {
+    if (value && value > 0 && value <= batchSize) {
+      setAbnormalDocSlots(value);
+      setNormalDocSlots(batchSize - value);
+    }
+  };
+
+  const handleBatchSizeChange = (value: number | null) => {
+    if (value && value > 0) {
+      setBatchSize(value);
+      // 重新计算槽位分配
+      const newAbnormalSlots = Math.min(abnormalDocSlots, value);
+      setAbnormalDocSlots(newAbnormalSlots);
+      setNormalDocSlots(value - newAbnormalSlots);
+    }
+  };
 
   useEffect(() => {
     if (kbId) {
@@ -106,7 +133,12 @@ export const KBSDTMPage: React.FC = () => {
             kb_id: kbId,
             mode: processMode,
             batch_size: batchSize,
-            auto_apply: autoApply
+            auto_apply: autoApply,
+            abnormal_doc_slots: abnormalDocSlots,
+            normal_doc_slots: normalDocSlots,
+            max_iterations: maxIterations,
+            abnormal_doc_threshold: abnormalDocThreshold,
+            enable_early_termination: enableEarlyTermination
           });
         } else {
           // 其他冷启动情况需要用户先完成摄入
@@ -120,7 +152,12 @@ export const KBSDTMPage: React.FC = () => {
           kb_id: kbId,
           mode: processMode,
           batch_size: batchSize,
-          auto_apply: autoApply
+          auto_apply: autoApply,
+          abnormal_doc_slots: abnormalDocSlots,
+          normal_doc_slots: normalDocSlots,
+          max_iterations: maxIterations,
+          abnormal_doc_threshold: abnormalDocThreshold,
+          enable_early_termination: enableEarlyTermination
         });
       }
 
@@ -253,6 +290,23 @@ export const KBSDTMPage: React.FC = () => {
             运行影子模式
           </Button>
           
+          <Button
+            onClick={() => {
+              // 重置配置到默认值
+              setBatchSize(10);
+              setAbnormalDocSlots(3);
+              setNormalDocSlots(7);
+              setMaxIterations(50);
+              setAbnormalDocThreshold(3);
+              setEnableEarlyTermination(true);
+              setProcessMode('edit');
+              setAutoApply(true);
+              message.success('配置已重置为默认值');
+            }}
+          >
+            重置配置
+          </Button>
+          
           {/* 显示智能标注按钮 */}
           {abnormalDocs.some(doc => doc.anomaly_type === 'cold_start') ? (
             <Button
@@ -292,41 +346,115 @@ export const KBSDTMPage: React.FC = () => {
           />
         )}
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="space-y-6">
+          {/* 基本配置 */}
           <div>
-            <label className="block text-sm font-medium mb-2">处理模式</label>
-            <Select
-              value={processMode}
-              onChange={setProcessMode}
-              style={{ width: '100%' }}
-              disabled={abnormalDocs.some(doc => doc.anomaly_type === 'cold_start')}
-            >
-              <Option value="edit">编辑模式</Option>
-              <Option value="annotate">标注模式</Option>
-              <Option value="shadow">影子模式</Option>
-            </Select>
-            {abnormalDocs.some(doc => doc.anomaly_type === 'cold_start') && (
-              <div className="text-xs text-gray-500 mt-1">智能初始化时自动使用编辑模式</div>
-            )}
+            <h4 className="text-base font-medium mb-3 text-gray-700">基本配置</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">处理模式</label>
+                <Select
+                  value={processMode}
+                  onChange={setProcessMode}
+                  style={{ width: '100%' }}
+                  disabled={abnormalDocs.some(doc => doc.anomaly_type === 'cold_start')}
+                >
+                  <Option value="edit">编辑模式</Option>
+                  <Option value="annotate">标注模式</Option>
+                  <Option value="shadow">影子模式</Option>
+                </Select>
+                {abnormalDocs.some(doc => doc.anomaly_type === 'cold_start') && (
+                  <div className="text-xs text-gray-500 mt-1">智能初始化时自动使用编辑模式</div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">自动应用</label>
+                <Switch
+                  checked={autoApply}
+                  onChange={setAutoApply}
+                  checkedChildren="开"
+                  unCheckedChildren="关"
+                />
+                <div className="text-xs text-gray-500 mt-1">自动应用编辑操作到标签字典</div>
+              </div>
+            </div>
           </div>
+
+          {/* 批处理配置 */}
           <div>
-            <label className="block text-sm font-medium mb-2">批处理大小</label>
-            <InputNumber
-              value={batchSize}
-              onChange={(value) => setBatchSize(value || 10)}
-              min={1}
-              max={100}
-              style={{ width: '100%' }}
-            />
+            <h4 className="text-base font-medium mb-3 text-gray-700">批处理配置</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">批处理大小</label>
+                <InputNumber
+                  value={batchSize}
+                  onChange={handleBatchSizeChange}
+                  min={1}
+                  max={100}
+                  style={{ width: '100%' }}
+                />
+                <div className="text-xs text-gray-500 mt-1">每次处理的文档总数</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">异常文档槽位</label>
+                <InputNumber
+                  value={abnormalDocSlots}
+                  onChange={handleAbnormalDocSlotsChange}
+                  min={1}
+                  max={batchSize}
+                  style={{ width: '100%' }}
+                />
+                <div className="text-xs text-gray-500 mt-1">用于处理异常文档的槽位数</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">正常文档槽位</label>
+                <InputNumber
+                  value={normalDocSlots}
+                  disabled
+                  style={{ width: '100%' }}
+                />
+                <div className="text-xs text-gray-500 mt-1">自动计算：{batchSize} - {abnormalDocSlots} = {normalDocSlots}</div>
+              </div>
+            </div>
           </div>
+
+          {/* 终止条件配置 */}
           <div>
-            <label className="block text-sm font-medium mb-2">自动应用</label>
-            <Switch
-              checked={autoApply}
-              onChange={setAutoApply}
-              checkedChildren="开"
-              unCheckedChildren="关"
-            />
+            <h4 className="text-base font-medium mb-3 text-gray-700">终止条件配置</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">最大迭代次数</label>
+                <InputNumber
+                  value={maxIterations}
+                  onChange={(value) => setMaxIterations(value || 50)}
+                  min={1}
+                  max={1000}
+                  style={{ width: '100%' }}
+                />
+                <div className="text-xs text-gray-500 mt-1">达到此次数时强制终止</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">异常文档阈值 (%)</label>
+                <InputNumber
+                  value={abnormalDocThreshold}
+                  onChange={(value) => setAbnormalDocThreshold(value || 3)}
+                  min={0}
+                  max={100}
+                  style={{ width: '100%' }}
+                />
+                <div className="text-xs text-gray-500 mt-1">异常文档占比低于此值时终止</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">启用提前终止</label>
+                <Switch
+                  checked={enableEarlyTermination}
+                  onChange={setEnableEarlyTermination}
+                  checkedChildren="开"
+                  unCheckedChildren="关"
+                />
+                <div className="text-xs text-gray-500 mt-1">满足条件时提前终止优化</div>
+              </div>
+            </div>
           </div>
         </div>
       </Card>
