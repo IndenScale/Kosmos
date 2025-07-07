@@ -25,6 +25,19 @@ class BaseProcessor(ABC):
         """
         pass
     
+    def needs_screenshot(self, file_path: str) -> bool:
+        """判断是否需要生成截图
+        
+        默认返回False，只有需要截图的处理器（如PDF、PPT等）才重写此方法返回True
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            bool: 是否需要生成截图
+        """
+        return False
+    
     def extract_content(self, file_path: str) -> Tuple[str, List[str]]:
         """提取文档内容（带日志记录）
         

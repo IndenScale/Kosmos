@@ -3,6 +3,7 @@ import json
 import uuid
 import logging
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -11,6 +12,7 @@ from app.models.sdtm import (
     DocumentInfo, AbnormalDocument, EditOperation, 
     DocumentAnnotation, SDTMEngineResponse, SDTMStats, SDTMJob
 )
+from app.models.document import KBDocument
 from app.db.database import SessionLocal
 from app.models.knowledge_base import KnowledgeBase
 from app.models.chunk import Chunk
@@ -748,6 +750,10 @@ class SDTMService:
             except Exception as e:
                 logger.error(f"Error applying annotation to {annotation.doc_id}: {e}")
         
+        # 更新相关文档的最后摄入时间
+        if applied_annotations:
+            self._update_documents_ingest_time_from_annotations(applied_annotations)
+        
         return applied_annotations
     
     async def optimize_tag_dictionary(
@@ -877,4 +883,36 @@ class SDTMService:
         except Exception as e:
             logger.error(f"验证标签字典更新时出错: {e}")
             import traceback
-            logger.error(f"验证错误详情: {traceback.format_exc()}") 
+            logger.error(f"验证错误详情: {traceback.format_exc()}")
+    
+    def _update_documents_ingest_time_from_annotations(self, applied_annotations: List[DocumentAnnotation]):
+        """从应用的标注中更新相关文档的最后摄入时间
+        
+        Args:
+            applied_annotations: 已成功应用的标注列表
+        """
+        try:
+            # 获取所有受影响的chunk，然后按文档分组
+            document_ids = set()
+            
+            for annotation in applied_annotations:
+                chunk = self.chunk_repo.get_chunk_by_id(annotation.doc_id)
+                if chunk:
+                    document_ids.add((chunk.kb_id, chunk.document_id))
+            
+            # 批量更新这些文档的最后摄入时间
+            for kb_id, document_id in document_ids:
+                kb_document = self.db.query(KBDocument).filter(
+                    KBDocument.kb_id == kb_id,
+                    KBDocument.document_id == document_id
+                ).first()
+                
+                if kb_document:
+                    kb_document.last_ingest_time = func.now()
+            
+            self.db.commit()
+            logger.info(f"已更新 {len(document_ids)} 个文档的最后摄入时间（来自SDTM标注）")
+            
+        except Exception as e:
+            logger.error(f"更新文档最后摄入时间失败（SDTM）: {e}")
+            # 不要让这个错误影响主要的SDTM流程 

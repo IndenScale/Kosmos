@@ -23,6 +23,10 @@ class PptxProcessor(BaseProcessor):
         file_ext = Path(file_path).suffix.lower()
         return file_ext in self.supported_extensions
     
+    def needs_screenshot(self, file_path: str) -> bool:
+        """PPTX文件需要生成截图"""
+        return True
+    
     def _extract_content_impl(self, file_path: str) -> Tuple[str, List[str]]:
         """提取PPTX文档内容，转换为PDF后进行统一处理"""
         try:

@@ -152,3 +152,33 @@ def reingest_document(
         return IngestionJobResponse.from_orm(job)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/kbs/{kb_id}/cleanup-duplicates")
+def cleanup_duplicate_chunks(
+    kb_id: str,
+    similarity_threshold: float = 0.95,
+    current_user: User = Depends(get_current_user),
+    kb_member = Depends(get_kb_admin_or_owner),
+    db: Session = Depends(get_db)
+):
+    """清理知识库中的重复chunks
+    
+    Args:
+        kb_id: 知识库ID
+        similarity_threshold: 相似度阈值，默认0.95，超过此值的chunks将被视为重复
+    """
+    ingestion_service = IngestionService(db)
+    
+    try:
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        result = loop.run_until_complete(
+            ingestion_service.cleanup_duplicate_chunks(kb_id, similarity_threshold)
+        )
+        
+        loop.close()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

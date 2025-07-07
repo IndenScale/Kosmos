@@ -35,12 +35,16 @@ class DocumentService:
         filename = f"{content_hash}{file_ext}"
         file_path = self.storage_path / filename
 
+        # 确保目录存在
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
         # 如果文件不存在才写入
         if not file_path.exists():
             with open(file_path, "wb") as f:
                 f.write(content)
 
-        return str(file_path)
+        # 返回标准化的路径（跨平台兼容）
+        return os.path.normpath(str(file_path))
 
     def upload_document(self, kb_id: str, user_id: str, uploaded_file: UploadFile) -> Document:
         """上传文档到知识库"""
@@ -177,8 +181,11 @@ class DocumentService:
             joinedload(Document.physical_file)
         ).filter(Document.id == document_id).first()
 
-        if document and document.physical_file and os.path.exists(document.physical_file.file_path):
-            return document.physical_file.file_path
+        if document and document.physical_file:
+            # 标准化路径格式以处理跨平台兼容性
+            normalized_path = os.path.normpath(document.physical_file.file_path)
+            if os.path.exists(normalized_path):
+                return normalized_path
         return None
 
     def remove_document_from_kb(self, kb_id: str, document_id: str) -> bool:
@@ -227,8 +234,9 @@ class DocumentService:
 
                         # 如果没有引用了，删除物理文件
                         if physical_file.reference_count <= 0:
-                            if os.path.exists(physical_file.file_path):
-                                os.remove(physical_file.file_path)
+                            normalized_path = os.path.normpath(physical_file.file_path)
+                            if os.path.exists(normalized_path):
+                                os.remove(normalized_path)
                             self.db.delete(physical_file)
 
                 self.db.commit()

@@ -71,9 +71,9 @@ class MilvusRepository:
             raise Exception(f"Collection {collection_name} 不存在")
         return Collection(collection_name)
 
-    def insert_chunks(self, kb_id: str, chunks_data: List[Dict[str, Any]]) -> bool:
+    def insert_chunks(self, collection_name: str, chunks_data: List[Dict[str, Any]]) -> bool:
         """插入chunks到Milvus"""
-        collection = self.get_collection(kb_id)
+        collection = Collection(collection_name)
 
         # 准备数据
         chunk_ids = [item["chunk_id"] for item in chunks_data]
@@ -272,4 +272,33 @@ class MilvusRepository:
             
         except Exception as e:
             print(f"更新向量元数据失败: {e}")
+            return False
+
+    def delete_chunks_by_ids(self, collection_name: str, chunk_ids: List[str]) -> bool:
+        """批量删除指定的chunks
+        
+        Args:
+            collection_name: Collection名称
+            chunk_ids: 要删除的chunk ID列表
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        try:
+            if not chunk_ids:
+                return True
+                
+            collection = Collection(collection_name)
+            
+            # 构建删除表达式 - 删除所有指定的chunk_ids
+            chunk_ids_str = '", "'.join(chunk_ids)
+            delete_expr = f'chunk_id in ["{chunk_ids_str}"]'
+            
+            # 执行删除
+            collection.delete(delete_expr)
+            collection.flush()
+            
+            return True
+        except Exception as e:
+            print(f"批量删除chunks失败: {e}")
             return False

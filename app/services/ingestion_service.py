@@ -3,18 +3,21 @@ from sqlalchemy import func
 import json
 import asyncio
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import uuid
 import time
+import hashlib
+import numpy as np
 
 from app.models.chunk import Chunk, IngestionJob
-from app.models.document import Document
+from app.models.document import Document, KBDocument
 from app.models.knowledge_base import KnowledgeBase
 from app.models.page_screenshot import PageScreenshot
 from app.processors.processor_factory import ProcessorFactory
 from app.utils.ai_utils import AIUtils
-from app.utils.text_splitter import TextSplitter
+from app.utils.intelligent_text_splitter import IntelligentTextSplitter
 from app.utils.task_queue import task_queue, TaskStatus
 from app.repositories.document_repo import DocumentRepository
 from app.repositories.milvus_repo import MilvusRepository
@@ -45,13 +48,105 @@ class IngestionService:
         self.db = db
         self.processor_factory = ProcessorFactory()
         self.ai_utils = AIUtils()
-        self.text_splitter = TextSplitter()
+        self.intelligent_splitter = IntelligentTextSplitter()
         self.doc_repo = DocumentRepository(db)
         self.milvus_repo = MilvusRepository()
         self.kb_service = KBService(db)
 
+    def _calculate_content_hash(self, content: str) -> str:
+        """计算内容的哈希值用于去重"""
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+    def _check_document_duplicate(self, kb_id: str, filename: str, content_hash: str) -> Optional[Document]:
+        """检查文档是否已存在（基于文件名和内容哈希）"""
+        # 首先检查相同文件名的文档
+        existing_docs = self.db.query(Document).filter(
+            Document.kb_id == kb_id,
+            Document.filename == filename
+        ).all()
+        
+        if existing_docs:
+            logger.warning(f"发现同名文档: {filename}, 数量: {len(existing_docs)}")
+            # 如果有相同文件名的文档，检查内容哈希
+            for doc in existing_docs:
+                if hasattr(doc, 'content_hash') and doc.content_hash == content_hash:
+                    logger.warning(f"发现重复文档: {filename}, 内容哈希匹配")
+                    return doc
+        
+        return None
+
+    def _deduplicate_chunks(self, chunks: List[str], similarity_threshold: float = 0.95) -> List[str]:
+        """对chunks进行去重，移除高度相似的内容"""
+        if len(chunks) <= 1:
+            return chunks
+        
+        logger.info(f"开始chunk去重，原始数量: {len(chunks)}")
+        
+        deduplicated = []
+        seen_hashes = set()
+        
+        for i, chunk in enumerate(chunks):
+            # 跳过过短的内容
+            if len(chunk.strip()) < 50:
+                deduplicated.append(chunk)
+                continue
+            
+            # 计算内容哈希进行精确去重
+            content_hash = self._calculate_content_hash(chunk.strip())
+            if content_hash in seen_hashes:
+                logger.debug(f"跳过重复chunk {i}: {chunk[:50]}...")
+                continue
+            
+            # 检查与已有chunks的相似度
+            is_duplicate = False
+            for existing_chunk in deduplicated:
+                if len(existing_chunk.strip()) < 50:
+                    continue
+                
+                similarity = self._calculate_text_similarity(chunk, existing_chunk)
+                if similarity > similarity_threshold:
+                    logger.debug(f"跳过相似chunk {i} (相似度: {similarity:.3f}): {chunk[:50]}...")
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                deduplicated.append(chunk)
+                seen_hashes.add(content_hash)
+        
+        logger.info(f"chunk去重完成，去重后数量: {len(deduplicated)}")
+        return deduplicated
+
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """计算两个文本的相似度（基于字符集合的Jaccard相似度）"""
+        try:
+            # 清理文本
+            text1_clean = text1.strip().lower()
+            text2_clean = text2.strip().lower()
+            
+            if not text1_clean or not text2_clean:
+                return 0.0
+            
+            # 使用字符级别的n-gram计算相似度
+            def get_ngrams(text, n=3):
+                return set(text[i:i+n] for i in range(len(text) - n + 1))
+            
+            ngrams1 = get_ngrams(text1_clean)
+            ngrams2 = get_ngrams(text2_clean)
+            
+            if not ngrams1 or not ngrams2:
+                return 0.0
+            
+            intersection = len(ngrams1.intersection(ngrams2))
+            union = len(ngrams1.union(ngrams2))
+            
+            return intersection / union if union > 0 else 0.0
+            
+        except Exception as e:
+            logger.warning(f"计算文本相似度失败: {e}")
+            return 0.0
+
     async def start_ingestion_job(self, kb_id: str, document_id: str, user_id: str, 
-                                  skip_tagging: bool = False) -> str:
+                                  skip_tagging: bool = False, force_reindex: bool = False) -> str:
         """启动文档摄入任务（v2版本：异步处理）
         
         Args:
@@ -59,6 +154,7 @@ class IngestionService:
             document_id: 文档ID
             user_id: 用户ID
             skip_tagging: 是否跳过标签生成步骤（默认False）
+            force_reindex: 是否强制重新索引（默认False）
         """
         # 创建任务记录
         job_id = str(uuid.uuid4())
@@ -82,7 +178,7 @@ class IngestionService:
             # 将任务添加到异步队列
             task_id = await task_queue.add_task(
                 self._run_pipeline_sync,
-                job_id, kb_id, document_id, skip_tagging,
+                job_id, kb_id, document_id, skip_tagging, force_reindex,
                 timeout=300  # 5分钟超时
             )
 
@@ -99,7 +195,7 @@ class IngestionService:
             self.db.commit()
             raise e
 
-    def _run_pipeline_sync(self, job_id: str, kb_id: str, document_id: str, skip_tagging: bool = False):
+    def _run_pipeline_sync(self, job_id: str, kb_id: str, document_id: str, skip_tagging: bool = False, force_reindex: bool = False):
         """同步版本的流水线执行（在线程池中运行）"""
         # 创建新的数据库会话
         db = SessionLocal()
@@ -115,7 +211,7 @@ class IngestionService:
             logger.info(f"任务状态更新为 processing: {job_id}")
 
             # 执行摄取流水线
-            self._execute_pipeline(db, job_id, kb_id, document_id, skip_tagging)
+            self._execute_pipeline(db, job_id, kb_id, document_id, skip_tagging, force_reindex)
 
             # 更新任务状态为完成
             job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
@@ -137,13 +233,14 @@ class IngestionService:
         finally:
             db.close()
 
-    def _execute_pipeline(self, db: Session, job_id: str, kb_id: str, document_id: str, skip_tagging: bool = False):
+    def _execute_pipeline(self, db: Session, job_id: str, kb_id: str, document_id: str, skip_tagging: bool = False, force_reindex: bool = False):
         """执行摄取流水线的核心逻辑
         
         Args:
             skip_tagging: 是否跳过标签生成步骤，如果为True，则chunks将以空标签存储
+            force_reindex: 是否强制重新索引，如果为True，则跳过重复检查
         """
-        logger.info(f"开始执行摄取流水线: job_id={job_id}, document_id={document_id}, skip_tagging={skip_tagging}")
+        logger.info(f"开始执行摄取流水线: job_id={job_id}, document_id={document_id}, skip_tagging={skip_tagging}, force_reindex={force_reindex}")
         
         # 1. 获取文档路径（预加载物理文件信息）
         document = db.query(Document).options(
@@ -158,7 +255,18 @@ class IngestionService:
 
         logger.info(f"文档信息获取成功: {document.filename}")
 
-        # 2. 获取知识库的标签字典（即使跳过标签生成也要获取，以备后用）
+        # 2. 检查是否已存在该文档的索引（除非强制重新索引）
+        if not force_reindex:
+            existing_chunks = db.query(Chunk).filter(
+                Chunk.kb_id == kb_id,
+                Chunk.document_id == document_id
+            ).first()
+            
+            if existing_chunks:
+                logger.warning(f"文档 {document_id} 已存在索引，跳过重复摄入。如需重新索引，请设置 force_reindex=True")
+                return
+
+        # 3. 获取知识库的标签字典（即使跳过标签生成也要获取，以备后用）
         kb_service = KBService(db)
         kb = kb_service.get_kb_by_id(kb_id)
         if not kb:
@@ -167,59 +275,87 @@ class IngestionService:
         tag_directory = kb.tag_dictionary if not skip_tagging else None
         logger.info(f"知识库信息获取成功: {kb.name}, 标签字典: {'存在' if tag_directory else '不存在/跳过'}")
 
-        # 3. 确保Milvus Collection存在
+        # 4. 确保Milvus Collection存在
         collection_name = self._ensure_milvus_collection(db, kb)
         logger.info(f"Milvus Collection 准备完成: {collection_name}")
 
-        # 4. 选择合适的处理器（使用物理文件路径）
+        # 5. 选择合适的处理器（使用物理文件路径）
         file_path = document.physical_file.file_path
+        
+        # 处理跨平台路径问题：标准化路径格式
+        file_path = os.path.normpath(file_path)
+        
+        # 确保使用绝对路径
+        if not os.path.isabs(file_path):
+            file_path = os.path.abspath(file_path)
+        
+        # 验证文件是否存在
+        if not os.path.exists(file_path):
+            raise Exception(f"文件不存在: {file_path}")
+        
         processor = self.processor_factory.get_processor(file_path)
         if not processor:
             raise Exception(f"不支持的文件类型: {file_path}")
 
-        # 5. 提取文档内容，processor现在可能返回截图路径
-        markdown_text, screenshot_paths = processor.extract_content(file_path)
+        # 6. 提取文档内容（现在返回结构化块）
+        content_blocks, screenshot_paths = processor.extract_content(file_path)
         
-        # 6. 处理页面截图（如果存在）
+        # 7. 处理页面截图
         screenshot_service = ScreenshotService(db)
         page_screenshots = []
         screenshot_id_mapping = {}
         
-        if screenshot_paths:
-            logger.info(f"开始处理 {len(screenshot_paths)} 个截图路径")
-            # 为每个截图路径创建PageScreenshot记录
-            for i, screenshot_path in enumerate(screenshot_paths):
-                try:
-                    screenshot_id = str(uuid.uuid4())
-                    screenshot = PageScreenshot(
-                        id=screenshot_id,
-                        document_id=document_id,
-                        page_number=i + 1,  # 页码从1开始
-                        file_path=screenshot_path
-                    )
-                    page_screenshots.append(screenshot)
-                    logger.debug(f"创建页面截图记录: 第{i + 1}页 -> {screenshot_path}, ID: {screenshot_id}")
-                except Exception as e:
-                    logger.error(f"创建页面截图记录失败: 第{i + 1}页, 错误: {str(e)}")
+        # 检查处理器是否需要截图
+        if processor.needs_screenshot(file_path):
+            logger.info(f"处理器 {processor.__class__.__name__} 需要截图，开始处理截图")
             
-            # 批量保存页面截图记录
-            if page_screenshots:
-                db.add_all(page_screenshots)
-                db.commit()
-                screenshot_id_mapping = {ss.page_number: ss.id for ss in page_screenshots}
-                logger.info(f"保存了{len(page_screenshots)}个页面截图记录")
-                logger.debug(f"页码到截图ID映射: {screenshot_id_mapping}")
+            # 首先检查是否已存在该文档的截图记录
+            existing_screenshots = screenshot_service.get_screenshots_by_document(document_id)
+            if existing_screenshots and not force_reindex:
+                logger.info(f"发现现有截图记录: {document_id}, 共{len(existing_screenshots)}个，重用现有记录")
+                page_screenshots = existing_screenshots
+                screenshot_id_mapping = {ss.page_number: ss.id for ss in existing_screenshots}
+                logger.debug(f"重用页码到截图ID映射: {screenshot_id_mapping}")
+            elif screenshot_paths:
+                logger.info(f"开始处理 {len(screenshot_paths)} 个截图路径")
+                # 为每个截图路径创建PageScreenshot记录
+                for i, screenshot_path in enumerate(screenshot_paths):
+                    try:
+                        screenshot_id = str(uuid.uuid4())
+                        screenshot = PageScreenshot(
+                            id=screenshot_id,
+                            document_id=document_id,
+                            page_number=i + 1,  # 页码从1开始
+                            file_path=screenshot_path
+                        )
+                        page_screenshots.append(screenshot)
+                        logger.debug(f"创建页面截图记录: 第{i + 1}页 -> {screenshot_path}, ID: {screenshot_id}")
+                    except Exception as e:
+                        logger.error(f"创建页面截图记录失败: 第{i + 1}页, 错误: {str(e)}")
+                
+                # 批量保存页面截图记录
+                if page_screenshots:
+                    db.add_all(page_screenshots)
+                    db.commit()
+                    screenshot_id_mapping = {ss.page_number: ss.id for ss in page_screenshots}
+                    logger.info(f"保存了{len(page_screenshots)}个页面截图记录")
+                    logger.debug(f"页码到截图ID映射: {screenshot_id_mapping}")
+                else:
+                    logger.info("没有页面截图需要保存")
             else:
-                logger.info("没有页面截图需要保存")
+                logger.warning("处理器需要截图但未返回截图路径")
         else:
-            logger.debug("处理器未返回截图路径")
+            logger.info(f"处理器 {processor.__class__.__name__} 不需要截图，跳过截图处理")
 
-        # 7. 分割文本为chunks
-        logger.debug(f"开始分割文本，原始长度: {len(markdown_text)} 字符")
-        chunks = self.text_splitter.split_text(markdown_text)
-        logger.info(f"分割后的chunks数量: {len(chunks)}")
+        # 10. 使用智能分割器将块转换为chunks
+        logger.debug(f"开始使用智能分割器处理 {len(content_blocks)} 个内容块")
+        chunks = self.intelligent_splitter.split(content_blocks)
+        logger.info(f"智能分割后的chunks数量: {len(chunks)}")
 
-        # 8. 为每个chunk生成标签、嵌入向量并建立截图关联
+        # 11. 对chunks进行去重
+        chunks = self._deduplicate_chunks(chunks)
+
+        # 12. 为每个chunk生成标签、嵌入向量并建立截图关联
         chunk_records = []
         milvus_data = []
 
@@ -231,23 +367,23 @@ class IngestionService:
             logger.debug(f"Chunk内容长度: {len(chunk_text)} 字符")
             logger.debug(f"Chunk内容预览: {chunk_text[:100]}...")
 
-            # 8.1. 根据配置决定是否生成标签
+            # 12.1. 根据配置决定是否生成标签
             tags = []
             if skip_tagging:
                 logger.debug("跳过标签生成步骤")
             else:
                 # 使用知识库的标签字典生成标签
-                tags = self.ai_utils.generate_tags(chunk_text, tag_directory)
+                tags = self.ai_utils.get_tags(chunk_text, tag_directory)
                 logger.debug(f"生成标签: {tags}")
 
-            # 8.2. 生成嵌入向量
-            embedding = self.ai_utils.generate_embedding(chunk_text)
+            # 12.2. 生成嵌入向量
+            embedding = self.ai_utils.get_embedding(chunk_text)
             logger.debug(f"生成嵌入向量，维度: {len(embedding)}")
             
             screenshot_ids = self._associate_chunks_with_screenshots([chunk_text], screenshot_id_mapping, len(page_screenshots))[0]
             logger.debug(f"关联的截图IDs: {screenshot_ids}")
 
-            # 8.3. 创建Chunk记录
+            # 12.3. 创建Chunk记录
             chunk = Chunk(
                 id=chunk_id,
                 kb_id=kb_id,
@@ -260,26 +396,20 @@ class IngestionService:
             chunk_records.append(chunk)
             logger.debug(f"创建chunk对象，截图IDs字段: {chunk.page_screenshot_ids}")
 
-            # 8.4. 准备Milvus数据
+            # 12.4. 准备Milvus数据
             milvus_data.append({
-                "id": chunk_id,
-                "text": chunk_text,
-                "embedding": embedding,
-                "metadata": {
-                    "kb_id": kb_id,
-                    "document_id": document_id,
-                    "chunk_index": i,
-                    "tags": tags,
-                    "screenshot_ids": screenshot_ids
-                }
+                "chunk_id": chunk_id,
+                "document_id": document_id,
+                "tags": tags,
+                "embedding": embedding
             })
 
-        # 9. 批量保存chunks到SQLite
+        # 13. 批量保存chunks到SQLite
         logger.info(f"\n批量保存 {len(chunk_records)} 个chunks到数据库")
         db.add_all(chunk_records)
         db.commit()
 
-        # 10. 批量保存chunks到Milvus
+        # 14. 批量保存chunks到Milvus
         logger.info(f"准备保存 {len(milvus_data)} 个chunks到Milvus")
         try:
             self.milvus_repo.insert_chunks(collection_name, milvus_data)
@@ -287,6 +417,19 @@ class IngestionService:
         except Exception as e:
             logger.error(f"保存到Milvus失败: {str(e)}")
             # 注意：不要因为Milvus失败而回滚SQLite，数据一致性由业务逻辑保证
+
+        # 15. 更新文档的最后摄入时间
+        kb_document = db.query(KBDocument).filter(
+            KBDocument.kb_id == kb_id,
+            KBDocument.document_id == document_id
+        ).first()
+        
+        if kb_document:
+            kb_document.last_ingest_time = func.now()
+            db.commit()
+            logger.info(f"已更新文档的最后摄入时间: {document_id}")
+        else:
+            logger.warning(f"未找到对应的KBDocument记录: kb_id={kb_id}, document_id={document_id}")
 
         logger.info(f"摄取任务完成: {file_path}")
         
@@ -365,15 +508,23 @@ class IngestionService:
 
     def _ensure_milvus_collection(self, db: Session, kb: KnowledgeBase) -> str:
         """确保知识库的Milvus Collection存在，返回collection名称"""
-        # 如果已经有collection_id，先检查是否真的存在
-        if kb.milvus_collection_id:
-            collection_name = self.milvus_repo._normalize_collection_name(kb.id)
-            # 检查collection是否真的存在
-            if self.milvus_repo._collection_exists(kb.id):
-                return kb.milvus_collection_id
+        # 获取标准化的集合名称
+        collection_name = self.milvus_repo._normalize_collection_name(kb.id)
+        
+        # 检查collection是否存在
+        if self.milvus_repo._collection_exists(kb.id):
+            # 如果集合存在，但数据库中的记录不匹配，更新数据库记录
+            if kb.milvus_collection_id != collection_name:
+                logger.info(f"更新知识库 {kb.id} 的collection名称: {kb.milvus_collection_id} -> {collection_name}")
+                kb.milvus_collection_id = collection_name
+                db.commit()
+            return collection_name
+        else:
+            # collection不存在，需要创建
+            if kb.milvus_collection_id:
+                logger.warning(f"警告: 知识库 {kb.id} 的collection {kb.milvus_collection_id} 不存在，将重新创建为 {collection_name}")
             else:
-                # collection不存在，需要重新创建
-                logger.warning(f"警告: 知识库 {kb.id} 的collection {kb.milvus_collection_id} 不存在，将重新创建")
+                logger.info(f"为知识库 {kb.id} 创建新的collection: {collection_name}")
 
         # 创建新的collection
         collection_name = self.milvus_repo.create_collection(kb.id)
@@ -588,3 +739,104 @@ class IngestionService:
             chunk_associations.append(chunk_screenshot_ids)
         
         return chunk_associations
+
+    async def cleanup_duplicate_chunks(self, kb_id: str, similarity_threshold: float = 0.95) -> Dict[str, Any]:
+        """清理知识库中的重复chunks
+        
+        Args:
+            kb_id: 知识库ID
+            similarity_threshold: 相似度阈值，超过此值的chunks将被视为重复
+            
+        Returns:
+            Dict包含清理统计信息
+        """
+        logger.info(f"开始清理知识库 {kb_id} 中的重复chunks，相似度阈值: {similarity_threshold}")
+        
+        try:
+            # 获取所有chunks
+            chunks = self.db.query(Chunk).filter(Chunk.kb_id == kb_id).all()
+            
+            if len(chunks) <= 1:
+                return {
+                    "total_chunks": len(chunks),
+                    "duplicates_removed": 0,
+                    "remaining_chunks": len(chunks),
+                    "message": "chunks数量不足，无需去重"
+                }
+            
+            logger.info(f"找到 {len(chunks)} 个chunks，开始去重分析")
+            
+            # 按创建时间排序，保留最早的chunk
+            chunks.sort(key=lambda x: x.created_at if hasattr(x, 'created_at') else x.id)
+            
+            chunks_to_remove = []
+            seen_hashes = set()
+            
+            for i, chunk in enumerate(chunks):
+                content = chunk.content.strip()
+                
+                # 跳过过短的内容
+                if len(content) < 50:
+                    continue
+                
+                # 计算内容哈希进行精确去重
+                content_hash = self._calculate_content_hash(content)
+                if content_hash in seen_hashes:
+                    logger.debug(f"发现重复chunk (哈希匹配): {chunk.id}")
+                    chunks_to_remove.append(chunk)
+                    continue
+                
+                # 检查与已保留chunks的相似度
+                is_duplicate = False
+                for j in range(i):
+                    if chunks[j] in chunks_to_remove:
+                        continue
+                    
+                    existing_content = chunks[j].content.strip()
+                    if len(existing_content) < 50:
+                        continue
+                    
+                    similarity = self._calculate_text_similarity(content, existing_content)
+                    if similarity > similarity_threshold:
+                        logger.debug(f"发现相似chunk (相似度: {similarity:.3f}): {chunk.id} vs {chunks[j].id}")
+                        chunks_to_remove.append(chunk)
+                        is_duplicate = True
+                        break
+                
+                if not is_duplicate:
+                    seen_hashes.add(content_hash)
+            
+            # 删除重复的chunks
+            removed_count = 0
+            if chunks_to_remove:
+                logger.info(f"准备删除 {len(chunks_to_remove)} 个重复chunks")
+                
+                # 从Milvus中删除
+                kb = self.kb_service.get_kb_by_id(kb_id)
+                if kb and kb.milvus_collection_id:
+                    chunk_ids_to_remove = [chunk.id for chunk in chunks_to_remove]
+                    try:
+                        self.milvus_repo.delete_chunks_by_ids(kb.milvus_collection_id, chunk_ids_to_remove)
+                        logger.info(f"从Milvus中删除了 {len(chunk_ids_to_remove)} 个chunks")
+                    except Exception as e:
+                        logger.error(f"从Milvus删除chunks失败: {e}")
+                
+                # 从SQLite中删除
+                for chunk in chunks_to_remove:
+                    self.db.delete(chunk)
+                    removed_count += 1
+                
+                self.db.commit()
+                logger.info(f"成功删除 {removed_count} 个重复chunks")
+            
+            return {
+                "total_chunks": len(chunks),
+                "duplicates_removed": removed_count,
+                "remaining_chunks": len(chunks) - removed_count,
+                "message": f"成功清理 {removed_count} 个重复chunks"
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"清理重复chunks失败: {e}")
+            raise Exception(f"清理重复chunks失败: {str(e)}")

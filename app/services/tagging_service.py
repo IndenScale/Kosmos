@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from typing import List, Dict, Any
 import json
 
 from app.models.chunk import Chunk
 from app.models.knowledge_base import KnowledgeBase
+from app.models.document import KBDocument
 from app.repositories.chunk_repo import ChunkRepository
 from app.repositories.milvus_repo import MilvusRepository
 from app.utils.ai_utils import AIUtils
@@ -87,6 +89,10 @@ class TaggingService:
             # 提交数据库更改
             self.db.commit()
             
+            # 更新相关文档的最后摄入时间
+            if processed_count > 0:
+                self._update_documents_ingest_time(kb_id, chunks)
+            
             return {
                 "success": True,
                 "message": f"标签生成完成：成功 {processed_count} 个，失败 {failed_count} 个",
@@ -156,4 +162,32 @@ class TaggingService:
                 "untagged_chunks": 0,
                 "tagging_progress": 0,
                 "error": str(e)
-            } 
+            }
+    
+    def _update_documents_ingest_time(self, kb_id: str, chunks: List[Chunk]):
+        """更新相关文档的最后摄入时间
+        
+        Args:
+            kb_id: 知识库ID
+            chunks: 已处理的chunks列表
+        """
+        try:
+            # 获取所有受影响的文档ID
+            document_ids = list(set(chunk.document_id for chunk in chunks))
+            
+            # 批量更新这些文档的最后摄入时间
+            for document_id in document_ids:
+                kb_document = self.db.query(KBDocument).filter(
+                    KBDocument.kb_id == kb_id,
+                    KBDocument.document_id == document_id
+                ).first()
+                
+                if kb_document:
+                    kb_document.last_ingest_time = func.now()
+            
+            self.db.commit()
+            print(f"已更新 {len(document_ids)} 个文档的最后摄入时间")
+            
+        except Exception as e:
+            print(f"更新文档最后摄入时间失败: {e}")
+            # 不要让这个错误影响主要的标注流程 

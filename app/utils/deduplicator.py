@@ -86,9 +86,8 @@ class Deduplicator:
                 if len(existing_content) < self.config.min_content_length:
                     continue
 
-                # 计算相似度阈值：与查询的相似度相等或在0.5%以内
-                # 如果两个结果的分数差异在0.5%以内，认为它们语义相似
-                score_diff_threshold = 0.005  # 0.5%
+                # 使用配置的分数差异阈值
+                score_diff_threshold = self.config.score_diff_threshold
 
                 # 计算分数差异的相对比例
                 if existing_score > 0:
@@ -97,10 +96,10 @@ class Deduplicator:
                     relative_diff = abs(current_score - existing_score)
 
                 if relative_diff <= score_diff_threshold:
-                    # 进一步检查内容相似性（简单的字符串相似度检查）
+                    # 进一步检查内容相似性
                     content_similarity = self._simple_content_similarity(current_content, existing_content)
 
-                    if content_similarity > 0.95:  # 95%的内容相似度
+                    if content_similarity > self.config.content_similarity_threshold:
                         logger.debug(f"发现语义相似内容 (分数差异: {relative_diff:.3f}, 内容相似度: {content_similarity:.3f})，已跳过: {current_content[:50]}...")
                         is_duplicate = True
                         break

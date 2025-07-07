@@ -42,7 +42,7 @@ export const KnowledgeBaseService = {
   },
 
   async updateKBBasicInfo(kbId: string, data: { name?: string; description?: string }): Promise<KnowledgeBase> {
-    const response = await apiClient.patch(`/kbs/${kbId}/basic`, data);
+    const response = await apiClient.put(`/api/v1/kbs/${kbId}`, data);
     return response.data;
   },
 
@@ -53,7 +53,7 @@ export const KnowledgeBaseService = {
   },
 
   // 验证JSON格式的标签字典
-  validateTagDictionary(jsonString: string): { isValid: boolean; data?: Record<string, string[]>; error?: string } {
+  validateTagDictionary(jsonString: string): { isValid: boolean; data?: any; error?: string } {
     try {
       const parsed = JSON.parse(jsonString);
 
@@ -61,26 +61,49 @@ export const KnowledgeBaseService = {
         return { isValid: false, error: '标签字典必须是一个对象' };
       }
 
-      const cleaned: Record<string, string[]> = {};
-      for (const [key, value] of Object.entries(parsed)) {
-        if (typeof key !== 'string' || key.trim() === '') {
-          return { isValid: false, error: '分类名称必须是非空字符串' };
+      // 递归验证嵌套字典结构
+      const validateNestedStructure = (obj: any, path: string = ''): { isValid: true; tagCount: number } | { isValid: false; error: string } => {
+        let totalTagCount = 0;
+
+        for (const [key, value] of Object.entries(obj)) {
+          if (typeof key !== 'string' || key.trim() === '') {
+            return { isValid: false, error: `路径 "${path}" 中的键名必须是非空字符串` };
+          }
+
+          const currentPath = path ? `${path}.${key}` : key;
+
+          if (Array.isArray(value)) {
+            // 叶子节点：必须是字符串数组
+            const validTags = value.filter(item => typeof item === 'string' && item.trim() !== '');
+            if (validTags.length !== value.length) {
+              return { isValid: false, error: `路径 "${currentPath}" 中的标签数组包含非字符串或空字符串元素` };
+            }
+            totalTagCount += validTags.length;
+          } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            // 嵌套对象：递归验证
+            const nestedResult = validateNestedStructure(value, currentPath);
+            if (!nestedResult.isValid) {
+              return nestedResult;
+            }
+            totalTagCount += nestedResult.tagCount;
+          } else {
+            return { isValid: false, error: `路径 "${currentPath}" 的值必须是对象或字符串数组` };
+          }
         }
 
-        if (Array.isArray(value)) {
-          const tags = value.filter(item => typeof item === 'string' && item.trim() !== '');
-          cleaned[key.trim()] = tags.map(tag => tag.trim());
-        } else {
-          return { isValid: false, error: `分类 "${key}" 的值必须是字符串数组` };
-        }
+        return { isValid: true, tagCount: totalTagCount };
+      };
+
+      const validationResult = validateNestedStructure(parsed);
+      if (!validationResult.isValid) {
+        return { isValid: false, error: validationResult.error };
       }
 
-      const totalTags = Object.values(cleaned).flat().length;
-      if (totalTags > 250) {
-        return { isValid: false, error: `标签总数 (${totalTags}) 超过限制 (250)` };
+      if (validationResult.tagCount > 250) {
+        return { isValid: false, error: `标签总数 (${validationResult.tagCount}) 超过限制 (250)` };
       }
 
-      return { isValid: true, data: cleaned };
+      return { isValid: true, data: parsed };
     } catch (error) {
       return { isValid: false, error: 'JSON 格式无效' };
     }

@@ -17,13 +17,22 @@ class DeduplicationConfig(BaseModel):
     enabled: bool = True
     literal_match_enabled: bool = True
     semantic_similarity_enabled: bool = True
-    semantic_similarity_threshold: float = 0.5  # 语义相似度阈值
-    min_content_length: int = 10  # 最小内容长度才进行去重
+    semantic_similarity_threshold: float = 0.85  # 提高语义相似度阈值，更严格的去重
+    min_content_length: int = 30  # 提高最小内容长度，避免对短文本过度去重
+    score_diff_threshold: float = 0.02  # 搜索结果分数差异阈值（2%）
+    content_similarity_threshold: float = 0.9  # 内容相似度阈值（90%）
+
+class PDFProcessorConfig(BaseModel):
+    """PDF处理器配置"""
+    enable_screenshot_description: bool = True  # 是否启用页面截图的图像理解
+    screenshot_description_max_pages: int = 20  # 最大处理页数，避免大文档处理时间过长
+    screenshot_dpi: int = 200  # 截图分辨率
 
 class Config(BaseModel):
     """应用配置"""
     logging: LoggingConfig = LoggingConfig()
     deduplication: DeduplicationConfig = DeduplicationConfig()
+    pdf_processor: PDFProcessorConfig = PDFProcessorConfig()
     
     @classmethod
     def load(cls) -> "Config":
@@ -37,8 +46,15 @@ class Config(BaseModel):
                 enabled=os.getenv("DEDUP_ENABLED", "true").lower() == "true",
                 literal_match_enabled=os.getenv("DEDUP_LITERAL_ENABLED", "true").lower() == "true",
                 semantic_similarity_enabled=os.getenv("DEDUP_SEMANTIC_ENABLED", "true").lower() == "true",
-                semantic_similarity_threshold=float(os.getenv("DEDUP_SEMANTIC_THRESHOLD", "0.5")),
-                min_content_length=int(os.getenv("DEDUP_MIN_LENGTH", "10"))
+                semantic_similarity_threshold=float(os.getenv("DEDUP_SEMANTIC_THRESHOLD", "0.85")),
+                min_content_length=int(os.getenv("DEDUP_MIN_LENGTH", "30")),
+                score_diff_threshold=float(os.getenv("DEDUP_SCORE_DIFF_THRESHOLD", "0.02")),
+                content_similarity_threshold=float(os.getenv("DEDUP_CONTENT_SIMILARITY_THRESHOLD", "0.9"))
+            ),
+            pdf_processor=PDFProcessorConfig(
+                enable_screenshot_description=os.getenv("PDF_ENABLE_SCREENSHOT_DESCRIPTION", "true").lower() == "true",
+                screenshot_description_max_pages=int(os.getenv("PDF_SCREENSHOT_DESCRIPTION_MAX_PAGES", "20")),
+                screenshot_dpi=int(os.getenv("PDF_SCREENSHOT_DPI", "200"))
             )
         )
 
