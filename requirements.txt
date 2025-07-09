@@ -31,3 +31,7 @@ python-pptx>=0.6.21
 # DOCX转PDF依赖（Windows）
 docx2pdf>=0.1.8
 comtypes>=1.1.14
+# mcp
+aiohttp
+mcp
+jsonlines
