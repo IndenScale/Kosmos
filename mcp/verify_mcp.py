@@ -36,7 +36,7 @@ def check_config():
     load_dotenv()
     
     base_url = os.getenv('KOSMOS_BASE_URL')
-    username = os.getenv('KOSMOS_USERNAME') or os.getenv('KOSMOS_USER_NAME')
+    username = os.getenv('KOSMOS_USERNAME')
     password = os.getenv('KOSMOS_PASSWORD')
     
     if base_url and username and password:

@@ -1,11 +1,11 @@
 {
   "mcpServers": {
     "kosmos-knowledge-base": {
-      "command": "/home/sdf/Kosmos/.venv/bin/python",
-      "args": ["/home/sdf/Kosmos/mcp/server.py"],
+      "command": "python",
+      "args": ["./Kosmos/mcp/server.py"],
       "env": {
         "KOSMOS_BASE_URL": "http://127.0.0.1:8000",
-        "KOSMOS_USER_NAME": "songdifei",
+        "KOSMOS_USERNAME": "songdifei",
         "KOSMOS_PASSWORD": "anime0615+"
       }
     }

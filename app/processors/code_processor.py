@@ -1,5 +1,5 @@
-import re
-from typing import Tuple, List, Dict
+import os
+from typing import Tuple, List, Dict, Any
 from pathlib import Path
 from .base_processor import BaseProcessor
 
@@ -18,6 +18,40 @@ class CodeProcessor(BaseProcessor):
             '.toml', '.ini', '.cfg', '.conf', '.dockerfile', '.makefile', '.cmake'
         ]
         
+        # 不同语言的代码块分割模式
+        self.language_patterns = {
+            'python': {
+                'function': r'^(def\s+\w+.*?:)$',
+                'class': r'^(class\s+\w+.*?:)$',
+                'import': r'^(import\s+.*|from\s+.*import\s+.*)$',
+                'comment_block': r'^("""[\s\S]*?"""|\'\'\'\'[\s\S]*?\'\'\'\')$'
+            },
+            'javascript': {
+                'function': r'^(function\s+\w+.*?\{|const\s+\w+\s*=.*?=>|\w+\s*:\s*function.*?\{)$',
+                'class': r'^(class\s+\w+.*?\{)$',
+                'import': r'^(import\s+.*|export\s+.*|require\s*\(.*\))$',
+                'comment_block': r'^(/\*[\s\S]*?\*/)$'
+            },
+            'java': {
+                'function': r'^(public|private|protected)?\s*(static)?\s*\w+\s+\w+\s*\(.*?\)\s*\{$',
+                'class': r'^(public|private|protected)?\s*(abstract)?\s*(class|interface)\s+\w+.*?\{$',
+                'import': r'^(import\s+.*|package\s+.*)$',
+                'comment_block': r'^(/\*[\s\S]*?\*/)$'
+            },
+            'cpp': {
+                'function': r'^(\w+\s+)*\w+\s*\(.*?\)\s*(const)?\s*\{$',
+                'class': r'^(class|struct)\s+\w+.*?\{$',
+                'include': r'^(#include\s+.*|#define\s+.*)$',
+                'namespace': r'^(namespace\s+\w+.*?\{)$'
+            },
+            'go': {
+                'function': r'^func\s+(\w+\s*)?\w+\s*\(.*?\).*?\{$',
+                'struct': r'^type\s+\w+\s+struct\s*\{$',
+                'interface': r'^type\s+\w+\s+interface\s*\{$',
+                'import': r'^(import\s+.*|package\s+.*)$'
+            }
+        }
+    
     def can_process(self, file_path: str) -> bool:
         """判断是否可以处理该文件类型"""
         file_ext = Path(file_path).suffix.lower()
@@ -106,7 +140,88 @@ class CodeProcessor(BaseProcessor):
         # 添加代码内容
         markdown += f"```{language}\n{content}\n```\n\n"
         
+        # 添加代码结构分析
+        structure = self._analyze_code_structure(content, language)
+        if structure:
+            markdown += "## 代码结构\n\n"
+            for item in structure:
+                markdown += f"- {item}\n"
+            markdown += "\n"
+        
         return markdown
+    
+    def _analyze_code_structure(self, content: str, language: str) -> List[str]:
+        """分析代码结构"""
+        structure = []
+        lines = content.split('\n')
+        
+        if language not in self.language_patterns:
+            return structure
+        
+        patterns = self.language_patterns[language]
+        
+        for i, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('//'):
+                continue
+            
+            for pattern_type, pattern in patterns.items():
+                if re.match(pattern, line, re.MULTILINE):
+                    structure.append(f"{pattern_type.title()} (行 {i}): {line[:50]}{'...' if len(line) > 50 else ''}")
+                    break
+        
+        return structure
+    
+    def split_code_intelligently(self, content: str, language: str, max_chunk_size: int = 2000) -> List[str]:
+        """智能分割代码，确保分割点在代码块边界"""
+        lines = content.split('\n')
+        chunks = []
+        current_chunk = []
+        current_size = 0
+        
+        # 代码块边界检测
+        def is_code_boundary(line: str, language: str) -> bool:
+            line = line.strip()
+            if not line:
+                return True
+            
+            # 通用边界模式
+            if line.startswith('#') or line.startswith('//'):
+                return True
+            
+            if language in self.language_patterns:
+                patterns = self.language_patterns[language]
+                for pattern in patterns.values():
+                    if re.match(pattern, line):
+                        return True
+            
+            # 检查缩进变化（函数/类结束）
+            if language == 'python':
+                if line and not line.startswith(' ') and not line.startswith('\t'):
+                    return True
+            
+            return False
+        
+        for i, line in enumerate(lines):
+            line_size = len(line) + 1  # +1 for newline
+            
+            # 如果添加这行会超过限制，且当前位置是边界，则分割
+            if (current_size + line_size > max_chunk_size and 
+                current_chunk and 
+                is_code_boundary(line, language)):
+                
+                chunks.append('\n'.join(current_chunk))
+                current_chunk = [line]
+                current_size = line_size
+            else:
+                current_chunk.append(line)
+                current_size += line_size
+        
+        # 添加最后一个chunk
+        if current_chunk:
+            chunks.append('\n'.join(current_chunk))
+        
+        return [chunk for chunk in chunks if chunk.strip()]
     
     def get_supported_extensions(self) -> List[str]:
         return self.supported_extensions
