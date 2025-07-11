@@ -1,0 +1,149 @@
+/* Kosmos Showcase - Shared Styles */
+
+:root {
+    --background-color: #ffffff;
+    --text-color: #212529;
+    --primary-accent: #e7f1ff; /* Very light blue */
+    --secondary-accent: #f8f9fa; /* Light gray */
+    --border-color: #dee2e6;
+    --header-color: #003366; /* Dark blue for headers */
+    --link-color: #0056b3;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    max-width: 960px;
+    width: 100%;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+header {
+    text-align: center;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+}
+
+header h1 {
+    font-size: 2.8rem;
+    color: var(--header-color);
+    margin-bottom: 0.5rem;
+}
+
+header p {
+    font-size: 1.2rem;
+    color: #6c757d;
+}
+
+.slide {
+    padding: 3rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.slide:last-of-type {
+    border-bottom: none;
+}
+
+h2 {
+    font-size: 2rem;
+    color: var(--header-color);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--primary-accent);
+}
+
+h3 {
+    font-size: 1.5rem;
+    color: #343a40;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+p, ul, li {
+    font-size: 1.1rem;
+    color: #495057;
+}
+
+ul {
+    padding-left: 20px;
+}
+
+li {
+    margin-bottom: 0.5rem;
+}
+
+code, pre {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    background-color: var(--secondary-accent);
+    border-radius: 4px;
+    padding: 0.2em 0.4em;
+    font-size: 0.95em;
+}
+
+pre {
+    padding: 1em;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+}
+
+.highlight-box {
+    background-color: var(--primary-accent);
+    border-left: 4px solid var(--link-color);
+    padding: 1.5rem;
+    margin: 2rem 0;
+    border-radius: 0 4px 4px 0;
+}
+
+.highlight-box p:last-child {
+    margin-bottom: 0;
+}
+
+.gray-box {
+    background-color: var(--secondary-accent);
+    padding: 1.5rem;
+    margin: 2rem 0;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+a {
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+footer {
+    text-align: center;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    color: #6c757d;
+}
+
+nav {
+    text-align: center;
+    margin-bottom: 2rem;
+    background-color: var(--secondary-accent);
+    padding: 0.5rem;
+    border-radius: 8px;
+}
+
+nav a {
+    margin: 0 15px;
+    font-weight: 500;
+    color: var(--header-color);
+}

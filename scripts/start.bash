@@ -15,7 +15,7 @@ FRONTEND_PID="frontend.pid"
 start_backend() {
     echo "Starting backend..."
     cd $BACKEND_DIR
-    nohup uvicorn main:app --host 0.0.0.0 > $BACKEND_LOG 2>&1 &
+    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $BACKEND_LOG 2>&1 &
     echo $! > $BACKEND_PID
     echo "Backend started (PID: $(cat $BACKEND_PID))"
 }
@@ -34,5 +34,5 @@ start_backend
 start_frontend
 
 echo "Application started successfully"
-echo "Backend log: $BACKEND_DIR/$BACKEND_LOG"
-echo "Frontend log: $FRONTEND_DIR/$FRONTEND_LOG"
+echo "Backend log: $BACKEND_LOG"
+echo "Frontend log: $FRONTEND_LOG"

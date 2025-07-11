@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kosmos - 新一代知识治理与专家Agent赋能平台</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .card {
+            background-color: var(--secondary-accent);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: var(--header-color);
+            font-size: 1.3rem;
+        }
+
+        .card ul {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        
+        .card ul li {
+            margin-bottom: 0.75rem;
+        }
+
+        /* Styles for the full-width title of the case study */
+        .case-study-title-section {
+            margin-bottom: 2rem; /* 标题下方的间距 */
+        }
+        .case-study-title-section h3 {
+            font-size: 1.8rem; /* 调整字体大小以突出显示 */
+            color: var(--header-color);
+            text-align: left; /* 标题左对齐 */
+            margin-top: 0;
+        }
+
+        /* Container for the top two columns (Background/Task and Agent Workflow) */
+        .case-study-top-section-grid { /* 使用 Grid 布局实现背景/任务和工作流的并排显示 */
+            display: grid;
+            grid-template-columns: 1fr 2fr; /* 左列占1份宽度，右列占2份宽度 */
+            grid-template-rows: auto auto; /* 为左侧的两部分（背景、任务）创建两行 */
+            gap: 2rem; /* 网格项之间的间距 */
+            margin-bottom: 2rem; /* 顶部部分与交付成果部分之间的间距 */
+        }
+
+        /* Styles for the individual step boxes */
+        .step {
+            background: var(--secondary-accent);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0; /* 网格项内部的步骤框不需要底部外边距，间距由父网格的gap控制 */
+            border-left: 4px solid var(--link-color);
+        }
+        .step h4 {
+            margin: 0 0 0.5rem 0;
+            color: var(--header-color);
+        }
+        
+        /* Specific grid positioning for each step */
+        .case-study-background {
+            grid-column: 1; /* 位于第一列 */
+            grid-row: 1; /* 位于第一行 */
+        }
+        .case-study-task {
+            grid-column: 1; /* 位于第一列 */
+            grid-row: 2; /* 位于第二行 */
+        }
+        .case-study-workflow {
+            grid-column: 2; /* 位于第二列 */
+            grid-row: 1 / span 2; /* 跨越第一行和第二行，使其高度与左侧两部分总和对齐 */
+        }
+
+        /* Styles for the delivery results preformatted text */
+        .case-study-delivery-results pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 3rem 0;
+        }
+
+        .feature-section {
+            padding: 2rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .feature-painpoint {
+            background-color: #fff9f9;
+            border: 1px solid #ffe0e0;
+            border-left: 4px solid #dc3545;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+
+        .feature-painpoint h3 {
+            margin-top: 0;
+            color: #dc3545;
+        }
+
+        .feature-solution {
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+
+        .feature-solution h3 {
+            margin-top: 0;
+            color: var(--header-color);
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>超越传统KMS，赋能专家Agent</h1>
+            <p>Kosmos：将您的组织知识从成本中心，转变为驱动业务的智能引擎</p>
+        </header>
+
+        <nav>
+            <a href="index.html">大众概览</a>
+            <a href="decision-makers.html">决策者与用户</a>
+            <a href="researchers.html">研究者与专家</a>
+        </nav>
+
+        <main>
+            <div class="slide">
+                <h2>传统知识管理系统（KMS）的困境</h2>
+                <p>如果您的企业仍在使用传统的KMS，您一定对这些痛点感同身受：</p>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>知识治理失控</h3>
+                        <ul>
+                            <li>标签体系僵化，分类标准混乱。</li>
+                            <li>随着时间推移，知识库变成“数据沼泽”。</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>手动维护成本高昂</h3>
+                        <ul>
+                            <li>依赖人工进行分类和打标，耗时耗力。</li>
+                            <li>标准不一，最终无人愿意使用。</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>搜索体验差</h3>
+                        <ul>
+                            <li>简单的关键词搜索无法应对复杂的业务查询。</li>
+                            <li>员工找不到所需信息，组织效率低下。</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>无法赋能AI</h3>
+                        <ul>
+                            <li>通用AI不了解您企业的私有流程和知识。</li>
+                            <li>无法成为真正的生产力工具。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="slide">
+                <h2>Kosmos：从根源解决知识治理难题</h2>
+                <p>Kosmos并非对传统KMS的修补，而是从根本上对知识的“摄入-治理-搜索-应用”���链路进行了重构，旨在彻底解决困扰企业知识管理的核心痛点。</p>
+
+                <div class="feature-section">
+                    <div class="feature-painpoint">
+                        <h3>痛点一：多源异构的文档，难以统一管理</h3>
+                        <p>“我的团队有大量的PDF报告、Word文档、PPT演示文稿和JSON数据，它们散落在各处，格式不一，如何将它们有效地统一管理起来？”</p>
+                    </div>
+                    <div class="feature-solution">
+                        <h3>Kosmos方案：流畅敏捷的多格式摄入</h3>
+                        <p>您只需将不同格式的文档（PDF, DOCX, PPTX, JSON等）上传至Kosmos，系统会自动：</p>
+                        <ul>
+                            <li><strong>统一解析：</strong> 提取所有文档的核心文本内容。</li>
+                            <li><strong>智能去重：</strong> 通过计算文件内容的哈希值，确保完全相同的文档只存储一份物理文件，节约存储成本。</li>
+                            <li><strong>自动截图：</strong> 对PDF、PPTX等包含视觉信息的文档，自动生成每一页的截图，为后续的可视化追溯做好准备。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="feature-section">
+                    <div class="feature-painpoint">
+                        <h3>痛点二：手动维护标签费时费力，知识库沦为“数据沼泽”</h3>
+                        <p>“我们曾尝试建立标签体系，但需要领域专家投入大量时间进行枯燥的分类和标注。这项工作投入高、回报低，最终不了了之，知识库又变得混乱不堪。”</p>
+                    </div>
+                    <div class="feature-solution">
+                        <h3>Kosmos方案：智能强大的自动化知识治理</h3>
+                        <p>这正是Kosmos的核心创新——<strong>智能主题模型（SDTM）</strong>。您可以将其理解为一个永不疲倦的AI知识管理专家团队，在后台持续工作：</p>
+                        <ul>
+                            <li><strong>自主学习：</strong> SDTM会持续分析知识库中的文档，自动学习并理解您所在领域的专业知识。</li>
+                            <li><strong>动态构建标签体系：</strong> 它会自动创建、合并、细化标签，构建出一个反映您业务逻辑的、层级化的标签字典。</li>
+                            <li><strong>精准自动标注：</strong> 在理解文档和标签体系后，SDTM会自动为每一份资料分配合适的标签。</li>
+                        </ul>
+                        <div class="highlight-box">
+                            <p>通过SDTM，Kosmos将知识治理从一项需要专家手动完成的、繁琐的“在线”工作，转变为由AI驱动的、低成本的“离线”计算任务，从根本上解决了知识库“熵增”的难题。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-section">
+                    <div class="feature-painpoint">
+                        <h3>痛点三：搜索结果不准、不可信，找不到原文出处</h3>
+                        <p>“传统的关键词搜索经常找不到我想要的东西。即便找到了，也只是一段孤立的文本，我无法快速定位它在原始文档中的位置，尤其是在需要引用的合规、法务和研发场景，这让我无法信任搜索结果。”</p>
+                    </div>
+                    <div class="feature-solution">
+                        <h3>Kosmos方案：精准、高效且可追溯的搜索体验</h3>
+                        <p>Kosmos通过结合AI技术与结构化信息，提供全新的搜索体验：</p>
+                        <ul>
+                            <li><strong>神经+符号联合搜索：</strong> 同时利用向量的语义相似性和标签的精确匹配，确保搜索结果既相关又精准。</li>
+                            <li><strong>上下文感知：</strong> 搜索结果经过智能去重和重排序，为您呈现最核心、最相关的信息。</li>
+                            <li><strong>终极特性——原文可追溯：</strong> 这是Kosmos的“杀手级”功能。每一条搜索结果都会并排展示其<strong>原始页面截图</strong>。您无需下载和翻阅原文，即可瞬间获得完整的上下文信息，确保每一条知识都有源可溯、真实可信。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="slide">
+                <h2>超越知识管理：赋能您的专属专家Agent</h2>
+                <p>一个治理良好、搜索精准的知识库本身就能创造巨大价值。但这并非终点，而是更高层次价值的起点——将知识转化为行动力。Kosmos旨在赋能通用AI（Agent），让它们从“问答机器人”进化为能够自主执行复杂任务的“专家助理”。</p>
+                
+                <div class="case-study-title-section">
+                    <h3>案例：Agent自主完成数据安全评估</h3>
+                </div>
+
+                <div class="case-study-top-section-grid">
+                    <div class="step case-study-background">
+                        <h4>背景</h4>
+                        <p>一项常规的数据安全合规评估，通常需要审计员花费数小时阅读SOP、查找大量内部文档、寻找证据、并最终撰写评估报告。</p>
+                    </div>
+                    <div class="step case-study-task">
+                        <h4>任务</h4>
+                        <p>将此任务交给一个通用Agent，指令仅有一句话：“请基于《数据安全评估SOP》完成评估任务。”</p>
+                    </div>
+                    <div class="step case-study-workflow">
+                        <h4>Kosmos赋能下的Agent工作流</h4>
+                        <ol>
+                            <li><strong>理解任务：</strong> Agent阅读SOP，理解评估目标和所有控制项。</li>
+                            <li><strong>连接大脑：</strong> Agent接入Kosmos知识库作为其“长期记忆”。</li>
+                            <li><strong>自主执行：</strong> 对每一个控制项，Agent自动在Kosmos中搜索相关证据，如“数据治理协议”、“数据安全组织架构”等。</li>
+                            <li><strong>分析决策：</strong> Agent分析搜索到的证据，并做出“符合”、“部分符合”等专业判断。</li>
+                            <li><strong>生成报告：</strong> Agent将所有评估结果、判断依据和证据链接，自动生成一份结构化的JSON格式评估报告。</li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <div class="case-study-delivery-results">
+                    <h3>交付成果：机器自动生成的评估报告（片段）</h3>
+                    <p>整个过程完全自动化。以下是Agent最终交付的报告中的一条记录，其质量媲美人类专家：</p>
+                    <div class="gray-box">
+                        <p><strong>控制项ID:</strong> 7.2.2.1.2.b</p>
+                        <p><strong>要求:</strong> 查验数据处理关键岗位职责说明文件或人员任命书内容是否完备...</p>
+                        <p><strong>Agent判断:</strong> <span style="color: green; font-weight: bold;">符合</span></p>
+                        <p><strong>Agent评论:</strong> 知识库中的证据表明，公司已设立首席安全官或同等职务的安全负责人，并要求所有员工在入职时签订内容全面的数据保密协议，协议明确了职责、义务、保密范围和违规追责措施。</p>
+                        <strong>引用的证据:</strong>
+                        <pre><code>[
+    {
+        "chunk_id": "29825826-179a-4c7c-a962-6dd0e3515a80",
+        "chunk_content": "ent 附件**：相关的附件链接。### 3. 具体条目#### 条目 1- **序号**：1- **问题**：Has Chief Security Officer or equivalent role been defined? 是否设立了首席安全官或同等职务的安全负责人？- **现状描述**：是- **是否符合**：Fully Compliant 完全符合- **附件**：无..."
+    },
+    {
+        "chunk_id": "38f22974-efe1-4a9c-a07e-6dc8a6748240",
+        "chunk_content": "数据安全管理的指导原则。### 2. 主要元素#### 2.1 数据安全风险运营...#### 2.2 员工管控...1. **员工入职时**：- 应签订数据保密协议，明确工作过程中需要保护的信息、协议有效时间、终止时所需的措施、签署者的职责和行为..."
+    }
+]
+                        </code></pre>
+                    </div>
+                    <div class="highlight-box" style="margin-top: 1.5rem;">
+                        <p><strong>结论：</strong>Kosmos不仅解决了“找知识”的问题，更是激活了知识的生产力。它为AI Agent提供了可靠的、可行动的知识基础，使其能真正融入并自动化您核心的、知识密集型业务流程，实现价值的指数级越升。</p>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="slide">
+                <h2>为实际使用者设计</h2>
+                <h3>告别繁琐，拥抱高效</h3>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>精准的上下文搜索</h3>
+                        <p>搜索结果不仅返回文本，还并排展示原始页面截图，让您瞬间掌握完整信息，特别适用于合规、法务、研发等高保真场景。</p>
+                    </div>
+                    <div class="card">
+                        <h3>无需手动整理</h3>
+                        <p>您只需上传文档，剩下的分类、打标、关联工作全部由Kosmos自动完成。</p>
+                    </div>
+                    <div class="card">
+                        <h3>强大的API集成</h3>
+                        <p>将Kosmos的知识能力无缝对接到您现有的OA、ERP或BI系统中，打破信息孤岛。</p>
+                    </div>
+                    <div class="card">
+                        <h3>企业级安全</h3>
+                        <p>提供精细化的权限管理和私有化部署选项，确保企业核心知识资产的安全可控。</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Kosmos. All Rights Reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>
+

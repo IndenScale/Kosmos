@@ -59,21 +59,11 @@ class IngestionService:
 
     def _check_document_duplicate(self, kb_id: str, filename: str, content_hash: str) -> Optional[Document]:
         """检查文档是否已存在（基于文件名和内容哈希）"""
-        # 首先检查相同文件名的文档
-        existing_docs = self.db.query(Document).filter(
-            Document.kb_id == kb_id,
-            Document.filename == filename
-        ).all()
-        
-        if existing_docs:
-            logger.warning(f"发现同名文档: {filename}, 数量: {len(existing_docs)}")
-            # 如果有相同文件名的文档，检查内容哈希
-            for doc in existing_docs:
-                if hasattr(doc, 'content_hash') and doc.content_hash == content_hash:
-                    logger.warning(f"发现重复文档: {filename}, 内容哈希匹配")
-                    return doc
-        
-        return None
+        return self.db.query(Document).join(KBDocument).filter(
+            KBDocument.kb_id == kb_id,
+            Document.filename == filename,
+            Document.content_hash == content_hash
+        ).first()
 
     def _deduplicate_chunks(self, chunks: List[str], similarity_threshold: float = 0.95) -> List[str]:
         """对chunks进行去重，移除高度相似的内容"""
@@ -183,15 +173,15 @@ class IngestionService:
             )
 
             # 更新job记录，关联task_id
-            job.task_id = task_id
+            job.task_id = task_id  # type: ignore
             self.db.commit()
 
             return job_id
 
         except Exception as e:
             # 如果添加任务失败，更新任务状态
-            job.status = "failed"
-            job.error_message = str(e)
+            job.status = "failed"  # type: ignore
+            job.error_message = str(e)  # type: ignore
             self.db.commit()
             raise e
 
@@ -206,7 +196,7 @@ class IngestionService:
             if not job:
                 raise Exception(f"任务不存在: {job_id}")
 
-            job.status = "processing"
+            job.status = "processing"  # type: ignore
             db.commit()
             logger.info(f"任务状态更新为 processing: {job_id}")
 
@@ -216,7 +206,7 @@ class IngestionService:
             # 更新任务状态为完成
             job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
             if job:
-                job.status = "completed"
+                job.status = "completed"  # type: ignore
                 db.commit()
                 logger.info(f"任务完成: {job_id}")
 
@@ -226,8 +216,8 @@ class IngestionService:
             db.rollback()  # 回滚事务
             job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
             if job:
-                job.status = "failed"
-                job.error_message = str(e)
+                job.status = "failed"  # type: ignore
+                job.error_message = str(e)  # type: ignore
                 db.commit()
             raise e
         finally:
@@ -273,7 +263,7 @@ class IngestionService:
             raise Exception(f"知识库不存在: {kb_id}")
 
         tag_directory = kb.tag_dictionary if not skip_tagging else None
-        logger.info(f"知识库信息获取成功: {kb.name}, 标签字典: {'存在' if tag_directory else '不存在/跳过'}")
+        logger.info(f"知识库信息获取成功: {kb.name}, 标签字典: {'存在' if tag_directory is not None else '不存在/跳过'}")
 
         # 4. 确保Milvus Collection存在
         collection_name = self._ensure_milvus_collection(db, kb)
@@ -348,8 +338,21 @@ class IngestionService:
             logger.info(f"处理器 {processor.__class__.__name__} 不需要截图，跳过截图处理")
 
         # 10. 使用智能分割器将块转换为chunks
-        logger.debug(f"开始使用智能分割器处理 {len(content_blocks)} 个内容块")
-        chunks = self.intelligent_splitter.split(content_blocks)
+        logger.debug(f"开始使用智能分割器处理内容")
+        
+        # 确保 content_blocks 是 IntelligentTextSplitter 期望的列表格式
+        if isinstance(content_blocks, str):
+            # 如果是字符串（来自Generic/Code处理器），包装成结构化块
+            content_blocks_structured = [{'type': 'text', 'content': content_blocks}]
+        elif isinstance(content_blocks, list):
+            # 如果已经是列表（来自Json处理器），直接使用
+            content_blocks_structured = content_blocks
+        else:
+            # 处理未知类型，记录错误并继续
+            logger.warning(f"未知的 content_blocks 类型: {type(content_blocks)}，将尝试转换为空列表")
+            content_blocks_structured = []
+
+        chunks = self.intelligent_splitter.split(content_blocks_structured)
         logger.info(f"智能分割后的chunks数量: {len(chunks)}")
 
         # 11. 对chunks进行去重
@@ -373,7 +376,9 @@ class IngestionService:
                 logger.debug("跳过标签生成步骤")
             else:
                 # 使用知识库的标签字典生成标签
-                tags = self.ai_utils.get_tags(chunk_text, tag_directory)
+                # 确保 tag_directory 是一个字典
+                tag_dict = tag_directory if isinstance(tag_directory, dict) else {}
+                tags = self.ai_utils.get_tags(chunk_text, tag_dict)
                 logger.debug(f"生成标签: {tags}")
 
             # 12.2. 生成嵌入向量
@@ -425,7 +430,7 @@ class IngestionService:
         ).first()
         
         if kb_document:
-            kb_document.last_ingest_time = func.now()
+            kb_document.last_ingest_time = func.now()  # type: ignore
             db.commit()
             logger.info(f"已更新文档的最后摄入时间: {document_id}")
         else:
@@ -445,20 +450,20 @@ class IngestionService:
             return None
 
         # 如果任务有task_id，检查队列中的状态
-        if hasattr(job, 'task_id') and job.task_id:
-            queue_task = task_queue.get_task_status(job.task_id)
+        if hasattr(job, 'task_id') and job.task_id is not None:
+            queue_task = task_queue.get_task_status(str(job.task_id))
             if queue_task:
                 # 同步队列状态到数据库
-                if queue_task.status == TaskStatus.RUNNING and job.status == "pending":
-                    job.status = "processing"
+                if queue_task.status == TaskStatus.RUNNING and job.status == "pending":  # type: ignore
+                    job.status = "processing"  # type: ignore
                     self.db.commit()
-                elif queue_task.status == TaskStatus.COMPLETED and job.status in ["pending", "processing"]:
-                    job.status = "completed"
+                elif queue_task.status == TaskStatus.COMPLETED and job.status in ["pending", "processing"]: # type: ignore
+                    job.status = "completed"  # type: ignore
                     self.db.commit()
-                elif queue_task.status in [TaskStatus.FAILED, TaskStatus.TIMEOUT] and job.status in ["pending", "processing"]:
-                    job.status = "failed"
+                elif queue_task.status in [TaskStatus.FAILED, TaskStatus.TIMEOUT] and job.status in ["pending", "processing"]: # type: ignore
+                    job.status = "failed"  # type: ignore
                     if queue_task.error:
-                        job.error_message = queue_task.error
+                        job.error_message = queue_task.error  # type: ignore
                     self.db.commit()
 
         return job
@@ -509,28 +514,28 @@ class IngestionService:
     def _ensure_milvus_collection(self, db: Session, kb: KnowledgeBase) -> str:
         """确保知识库的Milvus Collection存在，返回collection名称"""
         # 获取标准化的集合名称
-        collection_name = self.milvus_repo._normalize_collection_name(kb.id)
+        collection_name = self.milvus_repo._normalize_collection_name(str(kb.id))
         
         # 检查collection是否存在
-        if self.milvus_repo._collection_exists(kb.id):
+        if self.milvus_repo._collection_exists(str(kb.id)):
             # 如果集合存在，但数据库中的记录不匹配，更新数据库记录
-            if kb.milvus_collection_id != collection_name:
+            if kb.milvus_collection_id != collection_name: # type: ignore
                 logger.info(f"更新知识库 {kb.id} 的collection名称: {kb.milvus_collection_id} -> {collection_name}")
-                kb.milvus_collection_id = collection_name
+                kb.milvus_collection_id = collection_name # type: ignore
                 db.commit()
             return collection_name
         else:
             # collection不存在，需要创建
-            if kb.milvus_collection_id:
+            if kb.milvus_collection_id is not None:
                 logger.warning(f"警告: 知识库 {kb.id} 的collection {kb.milvus_collection_id} 不存在，将重新创建为 {collection_name}")
             else:
                 logger.info(f"为知识库 {kb.id} 创建新的collection: {collection_name}")
 
         # 创建新的collection
-        collection_name = self.milvus_repo.create_collection(kb.id)
+        collection_name = self.milvus_repo.create_collection(str(kb.id))
 
         # 更新知识库记录
-        kb.milvus_collection_id = collection_name
+        kb.milvus_collection_id = collection_name # type: ignore
         db.commit()
 
         return collection_name
@@ -754,7 +759,7 @@ class IngestionService:
         
         try:
             # 获取所有chunks
-            chunks = self.db.query(Chunk).filter(Chunk.kb_id == kb_id).all()
+            chunks = self.db.query(Chunk).filter(Chunk.kb_id == kb_id).order_by(Chunk.created_at).all()
             
             if len(chunks) <= 1:
                 return {
@@ -765,9 +770,6 @@ class IngestionService:
                 }
             
             logger.info(f"找到 {len(chunks)} 个chunks，开始去重分析")
-            
-            # 按创建时间排序，保留最早的chunk
-            chunks.sort(key=lambda x: x.created_at if hasattr(x, 'created_at') else x.id)
             
             chunks_to_remove = []
             seen_hashes = set()
@@ -813,10 +815,10 @@ class IngestionService:
                 
                 # 从Milvus中删除
                 kb = self.kb_service.get_kb_by_id(kb_id)
-                if kb and kb.milvus_collection_id:
+                if kb and kb.milvus_collection_id is not None:
                     chunk_ids_to_remove = [chunk.id for chunk in chunks_to_remove]
                     try:
-                        self.milvus_repo.delete_chunks_by_ids(kb.milvus_collection_id, chunk_ids_to_remove)
+                        self.milvus_repo.delete_chunks_by_ids(str(kb.milvus_collection_id), chunk_ids_to_remove)
                         logger.info(f"从Milvus中删除了 {len(chunk_ids_to_remove)} 个chunks")
                     except Exception as e:
                         logger.error(f"从Milvus删除chunks失败: {e}")

@@ -1,6 +1,6 @@
 import json
 import jsonlines
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Union
 from pathlib import Path
 from .base_processor import BaseProcessor
 
@@ -17,7 +17,7 @@ class JsonProcessor(BaseProcessor):
         file_ext = Path(file_path).suffix.lower()
         return file_ext in self.supported_extensions
     
-    def _extract_content_impl(self, file_path: str) -> Tuple[str, List[str]]:
+    def _extract_content_impl(self, file_path: str) -> Tuple[Union[str, List[Dict[str, Any]]], List[str]]:
         """提取JSON/JSONL文档内容"""
         try:
             file_path_obj = Path(file_path)
@@ -49,10 +49,17 @@ class JsonProcessor(BaseProcessor):
         except Exception as e:
             raise Exception(f"处理JSON文件时发生错误: {str(e)}")
     
-    def _process_jsonl_file(self, file_path: str) -> Tuple[str, List[str]]:
-        """处理JSONL文件"""
+    def _process_jsonl_file(self, file_path: str) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """处理JSONL文件，返回结构化块列表"""
         try:
-            markdown_parts = []
+            blocks = []
+            # Add a header block for context
+            blocks.append({
+                "type": "heading",
+                "level": 1,
+                "content": f"JSONL文件: {Path(file_path).name}"
+            })
+            
             line_number = 0
             
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -66,15 +73,13 @@ class JsonProcessor(BaseProcessor):
                         json_obj = json.loads(line)
                         # 每一行作为一个独立的JSON对象处理
                         obj_markdown = self._json_object_to_markdown(json_obj, f"行 {line_number}")
-                        markdown_parts.append(obj_markdown)
+                        blocks.append({'type': 'text', 'content': obj_markdown})
                     except json.JSONDecodeError:
                         # 如果某行不是有效JSON，以纯文本形式处理
-                        markdown_parts.append(f"**行 {line_number} (纯文本):**\n```\n{line}\n```\n")
+                        plain_text_markdown = f"**行 {line_number} (纯文本):**\n```\n{line}\n```\n"
+                        blocks.append({'type': 'text', 'content': plain_text_markdown})
             
-            # 将所有部分合并
-            full_markdown = f"# JSONL文件: {Path(file_path).name}\n\n" + "\n---\n\n".join(markdown_parts)
-            
-            return full_markdown, []
+            return blocks, []
             
         except Exception as e:
             raise Exception(f"处理JSONL文件时发生错误: {str(e)}")

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kosmos - 面向下一代RAG的技术架构</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Additional styles for comparison tables and cards */
+        .comparison-table {
+            width: 100%;
+            margin: 2rem 0;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .comparison-table th, .comparison-table td {
+            border: 1px solid var(--border-color);
+            padding: 0.8rem;
+            vertical-align: top;
+        }
+        .comparison-table th {
+            background-color: var(--secondary-accent);
+            font-size: 1.1rem;
+        }
+        .comparison-table td.highlight {
+            background-color: var(--primary-accent);
+            font-weight: 500;
+        }
+        .comparison-table .rationale {
+            font-size: 0.9em;
+            color: #495057;
+            margin-top: 0.5em;
+            display: block;
+        }
+        .kos-cards-container {
+            display: flex;
+            gap: 1.5rem;
+            margin: 2rem 0;
+            align-items: flex-start;
+        }
+        .kos-card {
+            flex: 1;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            background-color: var(--secondary-accent);
+            display: flex;
+            flex-direction: column;
+        }
+        .kos-card.highlight {
+            border-color: var(--link-color);
+            background-color: var(--primary-accent);
+        }
+        .kos-card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.8rem;
+        }
+        .kos-card p:last-child {
+            margin-top: auto;
+        }
+        .kos-card pre {
+            background-color: #fff;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 0.9em;
+        }
+        @media (max-width: 800px) {
+            .kos-cards-container, .sdtm-workflow-container {
+                flex-direction: column;
+            }
+        }
+
+        .sdtm-workflow-container {
+            display: flex;
+            gap: 1.5rem;
+            margin: 2rem 0;
+            align-items: stretch; /* 确保卡片等高 */
+        }
+        .sdtm-card {
+            flex: 1;
+            background-color: var(--secondary-accent);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .sdtm-card h4 {
+            margin-top: 0;
+            color: var(--header-color);
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sdtm-card ul, .sdtm-card ol {
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>一种更优的RAG架构</h1>
+            <p>Kosmos：一个由清晰逻辑驱动的神经-符号知识系统</p>
+        </header>
+
+        <nav>
+            <a href="index.html">大众概览</a>
+            <a href="decision-makers.html">决策者与用户</a>
+            <a href="researchers.html">研究者与专家</a>
+        </nav>
+
+        <main>
+            <div class="slide">
+                <h2>1. 为什么要引入符号系统？</h2>
+                <p>当前，无论是构建Chatbot、Workflow还是Agent等AI应用，其性能瓶颈往往不在于LLM本身，而在于检索增强生成（RAG）的检索（Retrieval）环节。大量应用实践表明，如果检索系统无法提供精准、完整且低噪声的上下文，再强大的LLM也无法产出高质量的结论。<strong>检索质量已成为RAG应用最关键的瓶颈。</strong></p>
+                <p>主流RAG范式，尤其是应用于企业知识库这种典型的“数据稀疏”环境时，面临着不可调和的矛盾：</p>
+                <ul>
+                    <li><strong>内容未经优化：</strong> 企业文档的撰写者通常不考虑其未来被检索的便利性。</li>
+                    <li><strong>缺乏行为数据：</strong> 内部使用场景无法提供足够的用户行为数据来训练复杂的排序模型。</li>
+                </ul>
+                <p>这导致单纯依赖向量检索的方法噪声大，而依赖更重模型（如Cross-Attention或LLM Reranker）进行后处理的方法，则会陷入<strong>质量、延迟、成本</strong>的“不可能三角”。</p>
+                
+                <table class="comparison-table">
+                    <caption>表1: 主流RAG架构与Kosmos对比</caption>
+                    <thead>
+                        <tr>
+                            <th>方法</th>
+                            <th>底层原理</th>
+                            <th>检索质量</th>
+                            <th>在线延迟</th>
+                            <th>运营成本</th>
+                            <th>可解释性</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Vector Search</td>
+                            <td>向量相似度召回</td>
+                            <td>低</td>
+                            <td>低</td>
+                            <td>低</td>
+                            <td>差</td>
+                        </tr>
+                        <tr>
+                            <td>+ BM25 (Sparse)</td>
+                            <td>向量与关键词混合召回</td>
+                            <td>中</td>
+                            <td>低</td>
+                            <td>低</td>
+                            <td>中</td>
+                        </tr>
+                        <tr>
+                            <td>+ Cross-Attention Reranker</td>
+                            <td>向量召回后，用小型Transformer模型重排</td>
+                            <td>中</td>
+                            <td>中</td>
+                            <td>中</td>
+                            <td>差</td>
+                        </tr>
+                        <tr>
+                            <td>+ LLM Reranker</td>
+                            <td>向量召回后，用LLM对Top-K结果进行打分重排</td>
+                            <td>高</td>
+                            <td>极高</td>
+                            <td>极高</td>
+                            <td>弱</td>
+                        </tr>
+                        <tr>
+                            <td class="highlight">Kosmos (+ Tag Boosting)</td>
+                            <td><strong>符号过滤 + 向量召回 -> 标签加权</strong><span class="rationale">本质是LLM增强的BM25，符号（标签）由LLM离线生成和维护，作为更高级的“关键词”进行过滤和加权。</span></td>
+                            <td class="highlight">高</td>
+                            <td class="highlight">低</td>
+                            <td class="highlight">低</td>
+                            <td class="highlight">强</td>
+                        </tr>
+                        <tr>
+                            <td>GraphRAG</td>
+                            <td>构建知识图谱，通过图遍历和推理进行检索</td>
+                            <td>高</td>
+                            <td>极高</td>
+                            <td>极高</td>
+                            <td>中</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <p><strong>结论：</strong> 纯粹的神经检索方法已触及瓶颈。为了在保证高质量的同时，实现低延迟和低成本，我们必须引入一个高效的**符号系统**，在昂贵的语义计算发生前，对候选集进行大规模、高精度的剪枝。</p>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="slide">
+                <h2>2. 应该引入哪种符号系统？</h2>
+                <p>在确定需要一个符号系统后，我们面临一个关键的架构选择：使用哪种知识组织体系（KOS）？常见的选项包括层级标签、分类法和本体论。让我们以“动物”为例，直观地理解它们的区别：</p>
+                <div class="kos-cards-container">
+                    <div class="kos-card">
+                        <h3>分类法 (Taxonomy)</h3>
+                        <p><strong>核心：</strong> 严格、单一的层级结构，通常基于一个固定的视角（如生物演化）。</p>
+                        <pre><code>界: 动物界
+└ 门: 脊索动物门
+  └ 纲: 哺乳纲...</code></pre>
+                        <p><strong>特点：</strong> 结构严谨，标准清晰，但是仅能提供单一维度视角。生物学分类法难以表达生活史、捕食关系等复杂内容。</p>
+                    </div>
+            
+                    <div class="kos-card">
+                        <h3>本体论 (Ontology)</h3>
+                        <p><strong>核心：</strong> 极其丰富和复杂的模型，定义实体、属性以及实体间的关系。</p>
+                        <ul>
+                            <li><strong>实体:</strong> 狮子, 斑马</li>
+                            <li><strong>关系:</strong> (狮子) -preysOn-> (斑马)</li>
+                        </ul>
+                        <p><strong>特点：</strong> 高度灵活，表达能力最强，但构建和维护成本极高，难以穷尽所有可能的实体和关系。</p>
+                    </div>
+            
+                    <div class="kos-card highlight">
+                        <h3>层级标签 (Hierarchical Tags)</h3>
+                        <p><strong>核心：</strong> 灵活、多维度的标签体系，允许从不同视角对同一事物进行描述。</p>
+                        <pre><code>- 食性/肉食/顶级掠食者
+- 生境/陆地/非洲草原
+- 社会性/群居</code></pre>
+                        <p><strong>特点：</strong> 极度灵活，易于理解和扩展，可以根据需要随时增加新的维度。</p>
+                    </div>
+                </div>
+                <table class="comparison-table">
+                    <caption>表2: 知识组织体系（KOS）对比</caption>
+                    <thead>
+                        <tr>
+                            <th>体系</th>
+                            <th>表达能力</th>
+                            <th>构建/运营成本</th>
+                            <th>灵活性/敏捷性</th>
+                            <th>用户交互体验</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="highlight">层级标签</td>
+                            <td>中（父子关系）</td>
+                            <td class="highlight">低（可由LLM自动化）</td>
+                            <td class="highlight">高（易于动态调整）</td>
+                            <td class="highlight">极佳（直观，易于理解和使用）</td>
+                        </tr>
+                        <tr>
+                            <td>分类法 (Taxonomy)</td>
+                            <td>中高（严格的树状结构）</td>
+                            <td>中</td>
+                            <td>中</td>
+                            <td>好</td>
+                        </tr>
+                        <tr>
+                            <td>本体论 (Ontology)</td>
+                            <td>极高（复杂的实体-关系网络）</td>
+                            <td>极高（需专家手动构建）</td>
+                            <td>低（结构僵化，难以修改）</td>
+                            <td>差（需学习复杂查询语言）</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>本体论虽表达力强，但其高昂的成本和僵化问题使其不切实际。<strong>Kosmos选择“层级标签”，因为它在表达能力、运营成本和用户体验之间取得了最佳平衡，为自动化治理提供了可能。</strong></p>                
+            </div>
+
+            <hr>
+
+            <div class="slide">
+                <h2>3. 如何解决符号系统带来的运营复杂性？</h2>
+                <p>引入符号系统面临一个致命挑战：知识治理的内在矛盾。高质量的知识治理（如打标签、建体系）是一项<strong>专业但枯燥</strong>，且<strong>缺乏可见贡献（Credit）</strong>的工作。它要求领域专家投入大量时间进行重复性劳动，这种“高投入、低回报”的特性，导致绝大多数知识库的治理工作最终都半途而废。</p>
+                <p>Kosmos的最终答案，是彻底地自动化知识治理。这正是我们设计<strong>智能主题模型（SDTM）</strong>的初衷，它通过一个持续的、迭代的、由LLM驱动的离线流程，解决了符号系统的运营复杂性难题。</p>
+
+                <div class="sdtm-workflow-section">
+                    <h3>SDTM 工作流程：一个持续优化的闭环</h3>
+                    <p>SDTM并非一次性任务，而是一个在后台持续运行的优化循环。其核心工作流程如下：</p>
+                    <div class="sdtm-workflow-container">
+                        <div class="sdtm-card">
+                            <h4>外循环：任务调度与迭代控制 (SDTMService)</h4>
+                            <ul>
+                                <li><strong>任务触发：</strong> 可由系统定时触发，或在知识库发生显著变化（如大量文档入库）后自动启动。</li>
+                                <li><strong>批次构建：</strong> 从知识库中智能选择一个文档/片段批次，优先处理最关键的知识质量问题。</li>
+                                <li><strong>上下文打包：</strong> 将文档批次、当前标签字典、及知识库“健康度”数据打包，交付给内循环。</li>
+                                <li><strong>结果持久化：</strong> 在内循环完成后，负责将LLM返回的“编辑操作”和“文档标注”安全地更新到数据库中。</li>
+                            </ul>
+                        </div>
+                        <div class="sdtm-card">
+                            <h4>内循环：LLM驱动的分析与生成 (SDTMEngine)</h4>
+                            <ul>
+                                <li><strong>统一Prompt生成：</strong> 将外循环打包的全部上下文，构建成一个统一的、结构化的Prompt。</li>
+                                <li><strong>两阶段推理：</strong> 指示LLM在一次调用中，按顺序完成两个核心任务：
+                                    <ol>
+                                        <li><strong>编辑字典：</strong> 基于对当前批次的分析，生成对标签字典的编辑操作。</li>
+                                        <li><strong>文档标注：</strong> 立即使用优化过的新标签字典，为当前批次的文档生成标签。</li>
+                                    </ol>
+                                </li>
+                                <li><strong>结构化结果返回：</strong> LLM返回一个包含“编辑操作”和“文档标注”的JSON对象，交由外循环进行持久化。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <p>通过这个离线的、自动化的闭环，Kosmos将知识治理的复杂性从需要领域专家持续投入的“在线”人力劳动，转变成了由AI和算力驱动的“离线”计算任务，从而在根本上解决了符号系统最大的运营难题，使得整个神经-符号架构得以高效、低成本地运行。</p>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Kosmos. All Rights Reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

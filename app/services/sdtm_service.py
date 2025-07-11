@@ -201,7 +201,11 @@ class SDTMService:
                     logger.info(f"SDTM任务状态标记为完成: {job_id}")
                 else:
                     job.status = "failed"
-                    job.error_message = sdtm_result.get("error", "SDTM处理失败") if isinstance(sdtm_result, dict) else "SDTM处理失败"
+                    # 安全地获取错误消息，确保类型检查
+                    if isinstance(sdtm_result, dict):
+                        job.error_message = sdtm_result.get("error", "SDTM处理失败")
+                    else:
+                        job.error_message = "SDTM处理失败"
                     logger.error(f"SDTM任务状态标记为失败: {job_id}")
                 
                 # 尝试序列化结果（失败不影响主要功能）
