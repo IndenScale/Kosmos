@@ -134,3 +134,8 @@ frontend/node_modules/
 
 # nohup
 *.pid
+
+# gemini cli
+.gemini/
+GEMINI.md
+todo*

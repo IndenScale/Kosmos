@@ -29,4 +29,3 @@ Kosmos是一款语义知识库，使用前后端分离架构。目前的开发�
 后端位于./app目录，使用Fast API架构。分为models repository services routers四层（被称为layer）。以及辅助性的utils与processor。
 
 每个layer应当通过\_\_init\_\_.py导出内部的类与方法，供外部访问。而不是直接访问layer内部的文件。
-
