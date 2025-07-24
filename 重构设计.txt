@@ -1,0 +1,14 @@
+我希望对Kosmos进行一次重构。
+我希望使用渐进式重构，不干扰原有代码工作，而是将新功能逐渐迁移到新架构上。
+
+重构的重点焦点在于实现新的Fragment层。Fragment工作在能指层面
+
+Fragment层旨在取代原有分散碎片化的Chunk，Screenshot与尚未被充分记录的Figure。
+
+我们需要从Document的Ingestion过程理解Fragment层的概念。
+
+对于文本Docuemnt，直接进行chunking后创建TextFragment（也就是原有的Chunk）
+对于图片Document，统一到PNG格式后创建FigureFragment
+对于图文复合Document，首先统一为pdf格式，获得ScreenshotFragment，然后分离为text与figure，调用vlm对figure进行描述，创建FigureFragment，然后用figure_description替换text中的figure占位符，chunking，创建TextFragment
+
+为了实现召回，Document需要在Milvus中创建Index，通过embedding与tags两个字段与用户query进行匹配。目前我们仅会为Document的TextFragment创建Index
