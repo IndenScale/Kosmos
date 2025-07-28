@@ -2,33 +2,57 @@ import React from 'react';
 import { Tag, Progress, Space } from 'antd';
 import {
   LoadingOutlined,
-  ExclamationCircleOutlined,
-  TagOutlined,
-  TagsOutlined
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { DocumentStatus } from '../../types/document';
-import { IngestionJobStatus } from '../../types/ingestion';
-import { DocumentJobStatus } from '../../types/ingestion';
+import { DocumentProcessStatus, IndexStatus } from '../../types/index';
 
 interface DocumentStatusTagProps {
   status: DocumentStatus;
-  jobStatus?: DocumentJobStatus;
+  processStatus?: DocumentProcessStatus;
   progress?: number;
   chunkCount?: number;
+  activeJob?: {
+    status: string;
+    progress?: number;
+  };
 }
 
 export const DocumentStatusTag: React.FC<DocumentStatusTagProps> = ({
   status,
-  jobStatus,
+  processStatus,
   progress,
-  chunkCount = 0
+  chunkCount = 0,
+  activeJob
 }) => {
+  // 如果有活跃任务，优先显示任务状态
+  if (activeJob) {
+    return (
+      <div>
+        <Tag icon={<LoadingOutlined />} color="processing">
+          {activeJob.status === 'pending' ? '等待索引' : 
+           activeJob.status === 'processing' ? '索引中' : 
+           activeJob.status === 'completed' ? '索引完成' : 
+           activeJob.status === 'failed' ? '索引失败' : '处理中'}
+        </Tag>
+        {activeJob.progress !== undefined && (
+          <Progress
+            percent={activeJob.progress}
+            size="small"
+            style={{ width: 100, marginTop: 4 }}
+          />
+        )}
+      </div>
+    );
+  }
+
   switch (status) {
     case DocumentStatus.INGESTING:
       return (
         <div>
           <Tag icon={<LoadingOutlined />} color="processing">
-            {jobStatus?.status === IngestionJobStatus.PENDING ? '等待中' : '摄取中'}
+            {processStatus?.parse_status === IndexStatus.PENDING ? '等待解析' : 
+             processStatus?.index_status === IndexStatus.PENDING ? '等待索引' : '处理中'}
           </Tag>
           {progress !== undefined && (
             <Progress
@@ -37,9 +61,9 @@ export const DocumentStatusTag: React.FC<DocumentStatusTagProps> = ({
               style={{ width: 100, marginTop: 4 }}
             />
           )}
-          {jobStatus?.error_message && (
+          {processStatus?.error_message && (
             <div className="text-red-500 text-xs mt-1">
-              {jobStatus.error_message}
+              {processStatus.error_message}
             </div>
           )}
         </div>
@@ -47,67 +71,24 @@ export const DocumentStatusTag: React.FC<DocumentStatusTagProps> = ({
     case DocumentStatus.INGESTED:
       return (
         <Tag color="success">
-          已摄取 ({chunkCount} 块)
+          已索引 ({chunkCount} 块)
         </Tag>
-      );
-    case DocumentStatus.INGESTED_NOT_TAGGED:
-      return (
-        <Space>
-          <Tag color="success">
-            已摄取 ({chunkCount} 块)
-          </Tag>
-          <Tag icon={<TagOutlined />} color="orange">
-            需要标注
-          </Tag>
-        </Space>
-      );
-    case DocumentStatus.TAGGING:
-      return (
-        <div>
-          <Tag icon={<LoadingOutlined />} color="processing">
-            标注中
-          </Tag>
-          {progress !== undefined && (
-            <Progress
-              percent={progress}
-              size="small"
-              style={{ width: 100, marginTop: 4 }}
-            />
-          )}
-        </div>
-      );
-    case DocumentStatus.TAGGED:
-      return (
-        <Tag icon={<TagsOutlined />} color="green">
-          已标注 ({chunkCount} 块)
-        </Tag>
-      );
-    case DocumentStatus.TAGGING_OUTDATED:
-      return (
-        <Space>
-          <Tag icon={<TagsOutlined />} color="green">
-            已标注 ({chunkCount} 块)
-          </Tag>
-          <Tag icon={<ExclamationCircleOutlined />} color="gold">
-            标注过时
-          </Tag>
-        </Space>
       );
     case DocumentStatus.OUTDATED:
       return (
         <Space>
           <Tag color="success">
-            已摄取 ({chunkCount} 块)
+            已索引 ({chunkCount} 块)
           </Tag>
           <Tag icon={<ExclamationCircleOutlined />} color="warning">
-            需要重新摄取
+            需要重新索引
           </Tag>
         </Space>
       );
     default:
       return (
         <Tag color="default">
-          未摄取
+          未索引
         </Tag>
       );
   }

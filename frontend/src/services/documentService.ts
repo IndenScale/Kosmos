@@ -9,6 +9,7 @@ import {
   DocumentDeleteResponse,
   BatchAction
 } from '../types/document';
+import { UploadConfig } from '../config/uploadConfig';
 
 
 export class DocumentService {
@@ -150,31 +151,11 @@ export class DocumentService {
    * 验证文件类型
    */
   validateFileType(file: File): { isValid: boolean; error?: string } {
-    const allowedMimeTypes = [
-      'application/pdf',
-      'text/plain',
-      'text/markdown',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'image/png',
-      'image/jpeg',
-      'image/jpg'
-    ];
-
-    const allowedExtensions = [
-      'pdf', 'txt', 'md', 'docx', 'doc', 'pptx', 'xlsx',
-      'py', 'js', 'ts', 'java', 'c', 'cpp', 'png', 'jpg', 'jpeg'
-    ];
-
-    const filename = file.name.toLowerCase();
-    const fileExtension = filename.slice(((filename.lastIndexOf(".") - 1) >>> 0) + 2);
-    const isValidType = allowedMimeTypes.includes(file.type) || allowedExtensions.includes(fileExtension);
-
-    if (!isValidType) {
+    if (!UploadConfig.isSupportedFile(file.name, file.type)) {
+      const supportedExtensions = UploadConfig.getSupportedExtensions().join(', ');
       return {
         isValid: false,
-        error: '支持的文件格式：PDF、TXT、MD、DOC、DOCX、PPTX、图片(PNG/JPG)及代码文件'
+        error: `不支持的文件类型。支持的格式：${supportedExtensions}`
       };
     }
 
@@ -184,17 +165,15 @@ export class DocumentService {
   /**
    * 验证文件大小
    */
-  validateFileSize(file: File, maxSizeMB = 1024): { isValid: boolean; error?: string } {
-    const isValidSize = file.size / 1024 / 1024 < maxSizeMB;
+  validateFileSize(file: File): { isValid: boolean; error?: string } {
+    return UploadConfig.validateFileSize(file.name, file.size, file.type);
+  }
 
-    if (!isValidSize) {
-      return {
-        isValid: false,
-        error: `文件大小不能超过 ${maxSizeMB}MB`
-      };
-    }
-
-    return { isValid: true };
+  /**
+   * 验证文件（类型和大小）
+   */
+  validateFile(file: File): { isValid: boolean; error?: string } {
+    return UploadConfig.validateFile(file);
   }
 
   /**

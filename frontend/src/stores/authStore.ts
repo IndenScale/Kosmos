@@ -16,5 +16,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setLoading: (isLoading) => set({ isLoading }),
-  logout: () => set({ user: null, isAuthenticated: false })
+  logout: () => {
+    localStorage.removeItem('access_token');
+    set({ user: null, isAuthenticated: false });
+  }
 }));

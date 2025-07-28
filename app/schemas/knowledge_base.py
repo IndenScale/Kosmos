@@ -5,6 +5,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+# 导入凭证相关模式
+from app.schemas.credential import KBModelConfigsResponse
+
 class KBRoleEnum(str, Enum):
     OWNER = "owner"
     ADMIN = "admin"
@@ -39,7 +42,7 @@ class KBResponse(BaseModel):
     tag_dictionary: Dict[str, Any]
     milvus_collection_id: Optional[str] = None
     is_public: bool
-    last_tag_directory_update_time: Optional[datetime] = None  # 添加这个字段
+    last_tag_dictionary_update_time: Optional[datetime] = None  # 添加这个字段
     created_at: datetime
 
     class Config:
@@ -48,13 +51,11 @@ class KBResponse(BaseModel):
 class KBDetailResponse(KBResponse):
     members: List[KBMemberResponse]
     owner_username: str
+    model_configs: Optional[KBModelConfigsResponse] = None  # 添加模型配置信息
 
 class KBMemberAdd(BaseModel):
     user_id: str
     role: KBRoleEnum
 
 class TagDictionaryUpdate(BaseModel):
-    seed_tags: Optional[List[str]] = None
-    query_description: Optional[str] = None
-    seed_documents: Optional[List[str]] = None
-    tag_dictionary: Optional[Dict[str, Any]] = None  # 直接提供标签字典
+    tag_dictionary: Dict[str, Any]  # 直接提供标签字典JSON

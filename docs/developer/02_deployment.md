@@ -114,8 +114,8 @@ docker-compose up -d
 5.  **启动后端服务**:
     后端服务由 `app/main.py` 启动。
     ```bash
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-    ```
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --timeout-keep-alive 600
+```
     `--reload` 参数会使服务在代码变更时自动重启，非常适合开发环境。现在，您应该可以在 `http://localhost:8000/docs` 看到 FastAPI 自动生成的 API 文档。
 
 ## 5. 前端部署 (Frontend Setup)

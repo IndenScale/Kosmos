@@ -4,7 +4,6 @@ import { Tabs } from 'antd';
 import { KBOverviewPage } from './KBOverviewPage';
 import { KBDocumentManagePage } from './KBDocumentManagePage';
 import { KBSearchPage } from './KBSearchPage';
-import { KBSDTMPage } from './KBSDTMPage';
 
 export const KnowledgeBaseDetailPage: React.FC = () => {
   const { kbId } = useParams();
@@ -15,7 +14,6 @@ export const KnowledgeBaseDetailPage: React.FC = () => {
     const path = location.pathname;
     if (path.includes('/documents')) return 'documents';
     if (path.includes('/search')) return 'search';
-    if (path.includes('/sdtm')) return 'sdtm';
     return 'overview';
   };
 
@@ -23,7 +21,6 @@ export const KnowledgeBaseDetailPage: React.FC = () => {
     { key: 'overview', label: '概览' },
     { key: 'documents', label: '文档管理' },
     { key: 'search', label: '语义搜索' },
-    { key: 'sdtm', label: 'SDTM优化' },
   ];
 
   const handleTabChange = (key: string) => {
@@ -47,7 +44,6 @@ export const KnowledgeBaseDetailPage: React.FC = () => {
         <Route index element={<KBOverviewPage />} />
         <Route path="documents" element={<KBDocumentManagePage />} />
         <Route path="search" element={<KBSearchPage />} />
-        <Route path="sdtm" element={<KBSDTMPage />} />
       </Routes>
     </div>
   );

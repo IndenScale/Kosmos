@@ -1,22 +1,45 @@
 import { DocumentRecord } from "./document";
+
+export enum FragmentType {
+  TEXT = 'text',
+  SCREENSHOT = 'screenshot',
+  FIGURE = 'figure'
+}
+
 export interface SearchQuery {
   query: string;
   top_k?: number;
+  fragment_types?: FragmentType[];
+  must_tags?: string[];
+  must_not_tags?: string[];
+  like_tags?: string[];
+  parse_query?: boolean;
+  include_screenshots?: boolean;
+  include_figures?: boolean;
 }
 
 export interface SearchResult {
-  chunk_id: string;
+  fragment_id: string;
   document_id: string;
+  fragment_type: string;
   content: string;
   tags: string[];
   score: number;
-  screenshot_ids?: string[];  // 添加截图ID列表
+  meta_info?: Record<string, any>;
+  source_file_name?: string;
+  figure_name?: string;
+  related_screenshots?: Array<Record<string, any>>;
+  related_figures?: Array<Record<string, any>>;
+  page_range?: Record<string, number>;
+  // 保持向后兼容
+  chunk_id?: string;
+  screenshot_ids?: string[];
 }
 
 export interface RecommendedTag {
   tag: string;
-  freq: number;
-  eig_score: number;
+  count: number;
+  relevance: number;
 }
 
 export interface ScreenshotInfo {
@@ -32,6 +55,19 @@ export interface ScreenshotInfo {
 export interface SearchResponse {
   results: SearchResult[];
   recommended_tags: RecommendedTag[];
+  stats?: {
+    original_count: number;
+    deduplicated_count: number;
+    final_count: number;
+    search_time_ms?: number;
+  };
+  query_parse_result?: {
+    text_query: string;
+    must_tags: string[];
+    must_not_tags: string[];
+    like_tags: string[];
+    original_query: string;
+  };
 }
 
 export interface ParsedQuery {
@@ -57,9 +93,8 @@ export interface SearchPageState {
   searchText: string;
   activeTags: ActiveTag[];
   searchQuery: string;
-  expandedChunk: string | null;
-  modalOpen: boolean;
-  hoveredResult: string | null;
+  includeScreenshots: boolean;
+  includeFigures: boolean;
 }
 
 export interface SearchResultCardProps {

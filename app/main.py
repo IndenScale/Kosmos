@@ -1,35 +1,50 @@
 import os
+from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, create_tables
-from app.routers import auth, knowledge_bases, documents, ingestion, search, screenshots, sdtm, tagging
-from app.utils.task_queue import task_queue
+from app.routers import auth
+from app.routers import users
+from app.routers import knowledge_bases
+from app.routers import documents
+from app.routers import credentials
+from app.routers import fragments
+from app.routers import parser
+from app.routers import index
+from app.routers import search
+from app.routers import jobs
+# from app.routers import knowledge_bases, documents
+from app.services.unified_job_service import unified_job_service
 
-import app.models.user
-import app.models.knowledge_base
-import app.models.document
-import app.models.chunk
-import app.models.page_screenshot
+# Find the project root by looking for the .env file
+from pathlib import Path
+
+# Construct the path to the .env file.
+# This assumes the .env file is in the project root, two levels up from main.py
+dotenv_path = Path(__file__).parent.parent / '.env'
+
+# Load the .env file from the specified path
+load_dotenv(dotenv_path=dotenv_path)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("应用启动，开始创建数据库表...")
     create_tables()
     print("数据库表检查/创建完成。")
-    await task_queue.start()
-    print("异步任务队列已启动")
+    await unified_job_service.start()
+    print("统一任务服务已启动")
     yield
 
     # 关闭时运行
-    await task_queue.stop()
-    print("异步任务队列已停止")
+    await unified_job_service.stop()
+    print("统一任务服务已停止")
 
 # 创建FastAPI应用
 app = FastAPI(
     title="Kosmos API",
     description="Knowledge Management System API",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -56,13 +71,19 @@ app.add_middleware(
 
 # 包含路由
 app.include_router(auth.router)
+
+app.include_router(users.router)
 app.include_router(knowledge_bases.router)
 app.include_router(documents.router)
-app.include_router(ingestion.router)
+app.include_router(credentials.router)
+app.include_router(fragments.router)
+app.include_router(parser.router)
+app.include_router(index.router)
 app.include_router(search.router)
-app.include_router(screenshots.router)
-app.include_router(sdtm.router)
-app.include_router(tagging.router)
+app.include_router(jobs.router)
+# app.include_router(ingestion.router)
+# app.include_router(sdtm.router)
+# app.include_router(tagging.router)
 
 @app.get("/")
 def read_root():

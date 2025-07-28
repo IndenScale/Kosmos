@@ -1,38 +1,11 @@
 #!/bin/bash
 
-# Startup script for full application
-# Usage: .scripts/startup.sh
+# Kosmos v2.0 启动脚本 (scripts版本)
+# 与根目录的启动脚本保持一致
 
-# Configuration
-BACKEND_DIR="."
-FRONTEND_DIR="./frontend"
-BACKEND_LOG="backend.log"
-FRONTEND_LOG="frontend.log"
-BACKEND_PID="backend.pid"
-FRONTEND_PID="frontend.pid"
+# 获取项目根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Start backend
-start_backend() {
-    echo "Starting backend..."
-    cd $BACKEND_DIR
-    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $BACKEND_LOG 2>&1 &
-    echo $! > $BACKEND_PID
-    echo "Backend started (PID: $(cat $BACKEND_PID))"
-}
-
-# Start frontend
-start_frontend() {
-    echo "Starting frontend..."
-    cd $FRONTEND_DIR
-    nohup npm start > $FRONTEND_LOG 2>&1 &
-    echo $! > $FRONTEND_PID
-    echo "Frontend started (PID: $(cat $FRONTEND_PID))"
-}
-
-# Main execution
-start_backend
-start_frontend
-
-echo "Application started successfully"
-echo "Backend log: $BACKEND_LOG"
-echo "Frontend log: $FRONTEND_LOG"
+# 执行根目录的启动脚本
+exec "$PROJECT_ROOT/start_kosmos.sh" "$@"

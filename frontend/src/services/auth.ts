@@ -9,11 +9,7 @@ export const authService = {
     formData.append('username', data.username);
     formData.append('password', data.password);
 
-    const response = await apiClient.post('/api/v1/auth/token', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    });
+    const response = await apiClient.post('/api/v1/auth/token', formData);
     return response.data;
   },
 

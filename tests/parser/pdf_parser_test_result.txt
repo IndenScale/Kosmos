@@ -1,0 +1,110 @@
+PDF解析器测试结果
+==================================================
+测试文件: E:\Kosmos\tests\parser\测试PDF.pdf
+生成的Fragment数量: 9
+
+Fragment 1:
+  类型: screenshot
+  索引: 0
+  页面起始: 1
+  页面结束: 1
+  元信息: {'screenshot_path': 'page_1.png', 'page_start': 1, 'page_end': 1, 'content_type': 'screenshot'}
+  内容预览: Page 1 Screenshot...
+------------------------------
+Fragment 2:
+  类型: screenshot
+  索引: 1
+  页面起始: 2
+  页面结束: 2
+  元信息: {'screenshot_path': 'page_2.png', 'page_start': 2, 'page_end': 2, 'content_type': 'screenshot'}
+  内容预览: Page 2 Screenshot...
+------------------------------
+Fragment 3:
+  类型: screenshot
+  索引: 2
+  页面起始: 3
+  页面结束: 3
+  元信息: {'screenshot_path': 'page_3.png', 'page_start': 3, 'page_end': 3, 'content_type': 'screenshot'}
+  内容预览: Page 3 Screenshot...
+------------------------------
+Fragment 4:
+  类型: screenshot
+  索引: 3
+  页面起始: 4
+  页面结束: 4
+  元信息: {'screenshot_path': 'page_4.png', 'page_start': 4, 'page_end': 4, 'content_type': 'screenshot'}
+  内容预览: Page 4 Screenshot...
+------------------------------
+Fragment 5:
+  类型: figure
+  索引: 4
+  页面起始: 1
+  页面结束: 1
+  元信息: {'image_path': 'figure_0.png', 'page_start': 1, 'page_end': 1, 'content_type': 'figure', 'description_length': 21}
+  内容预览: figure_0.png...
+------------------------------
+Fragment 6:
+  类型: figure
+  索引: 5
+  页面起始: 2
+  页面结束: 2
+  元信息: {'image_path': 'figure_1.png', 'page_start': 2, 'page_end': 2, 'content_type': 'figure', 'description_length': 21}
+  内容预览: figure_1.png...
+------------------------------
+Fragment 7:
+  类型: figure
+  索引: 6
+  页面起始: 3
+  页面结束: 3
+  元信息: {'image_path': 'figure_2.png', 'page_start': 3, 'page_end': 3, 'content_type': 'figure', 'description_length': 21}
+  内容预览: figure_2.png...
+------------------------------
+Fragment 8:
+  类型: figure
+  索引: 7
+  页面起始: 4
+  页面结束: 4
+  元信息: {'image_path': 'figure_3.png', 'page_start': 4, 'page_end': 4, 'content_type': 'figure', 'description_length': 21}
+  内容预览: figure_3.png...
+------------------------------
+Fragment 9:
+  类型: text
+  索引: 8
+  页面起始: 1
+  页面结束: 4
+  元信息: {'content_type': 'text', 'content_length': 324, 'chunk_index': 0, 'total_chunks': 1, 'splitter_type': 'intelligent', 'page_start': 1, 'page_end': 4}
+  内容预览: 
+
+--- Page 1 ---
+
+ 
+图1 1-3-1-2 隐私政策 
+
+
+
+**图像描述 (第1页):**
+这是图像 figure_0.png 的描述
+
+
+
+
+--- Page 2 ---
+
+ 
+图2 1-3-1-2 隐私政策2 
+
+
+
+**图像描述 (第2页):**
+这是图像 figure_1.png 的描述
+
+
+
+
+--- Page 3 ---
+
+ 
+图3 1-3-1-2 隐私政策3 
+
+...
+------------------------------

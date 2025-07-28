@@ -6,9 +6,7 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   StopOutlined,
-  DeleteOutlined,
-  TagOutlined,
-  TagsOutlined
+  DeleteOutlined
 } from '@ant-design/icons';
 import { DocumentStatus } from '../../types/document';
 
@@ -19,16 +17,13 @@ interface DocumentActionsProps {
   canCancel: boolean;
   onPreview: (documentId: string) => void;
   onDownload: (documentId: string, filename: string) => void;
-  onIngest: (documentId: string) => void;
-  onReIngest: (documentId: string) => void;
-  onTag: (documentId: string) => void;
-  onReTag: (documentId: string) => void;
+  onIndex: (documentId: string) => void;
+  onReIndex: (documentId: string) => void;
   onCancel: (documentId: string) => void;
   onDelete: (documentId: string) => void;
-  ingestLoading?: boolean;
-  taggingLoading?: boolean;
+  indexLoading?: boolean;
   isProcessing?: boolean;
-  isTagging?: boolean;
+  hasActiveJob?: boolean; // 是否有活跃的索引任务
 }
 
 export const DocumentActions: React.FC<DocumentActionsProps> = ({
@@ -38,21 +33,16 @@ export const DocumentActions: React.FC<DocumentActionsProps> = ({
   canCancel,
   onPreview,
   onDownload,
-  onIngest,
-  onReIngest,
-  onTag,
-  onReTag,
+  onIndex,
+  onReIndex,
   onCancel,
   onDelete,
-  ingestLoading = false,
-  taggingLoading = false,
+  indexLoading = false,
   isProcessing = false,
-  isTagging = false
+  hasActiveJob = false
 }) => {
-  const canIngest = status === DocumentStatus.NOT_INGESTED;
-  const canReIngest = status === DocumentStatus.OUTDATED;
-  const canTag = status === DocumentStatus.INGESTED_NOT_TAGGED;
-  const canReTag = status === DocumentStatus.TAGGING_OUTDATED || status === DocumentStatus.TAGGED;
+  const canIndex = status === DocumentStatus.NOT_INGESTED;
+  const canReIndex = status === DocumentStatus.OUTDATED;
 
   return (
     <Space>
@@ -70,45 +60,24 @@ export const DocumentActions: React.FC<DocumentActionsProps> = ({
       >
         下载
       </Button>
-      {canIngest && (
+      {canIndex && (
         <Button
           size="small"
           icon={<PlayCircleOutlined />}
-          onClick={() => onIngest(documentId)}
-          disabled={ingestLoading}
+          onClick={() => onIndex(documentId)}
+          disabled={indexLoading || hasActiveJob}
         >
-          摄取
+          索引
         </Button>
       )}
-      {canReIngest && (
+      {canReIndex && (
         <Button
           size="small"
           icon={<ReloadOutlined />}
-          onClick={() => onReIngest(documentId)}
-          disabled={ingestLoading}
+          onClick={() => onReIndex(documentId)}
+          disabled={indexLoading || hasActiveJob}
         >
-          重新摄取
-        </Button>
-      )}
-      {canTag && (
-        <Button
-          size="small"
-          icon={<TagOutlined />}
-          onClick={() => onTag(documentId)}
-          disabled={taggingLoading}
-          type="default"
-        >
-          标注
-        </Button>
-      )}
-      {canReTag && (
-        <Button
-          size="small"
-          icon={<TagsOutlined />}
-          onClick={() => onReTag(documentId)}
-          disabled={taggingLoading}
-        >
-          重新标注
+          重新索引
         </Button>
       )}
       {canCancel && (
@@ -131,7 +100,7 @@ export const DocumentActions: React.FC<DocumentActionsProps> = ({
           size="small"
           danger
           icon={<DeleteOutlined />}
-          disabled={isProcessing}
+          disabled={isProcessing || hasActiveJob}
         >
           删除
         </Button>

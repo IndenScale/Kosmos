@@ -2,10 +2,19 @@ import React from 'react';
 import { Table, Checkbox } from 'antd';
 import type { ColumnsType, TableRowSelection, Key } from 'antd/es/table/interface';
 import { DocumentRecord, DocumentStatus, SelectionState } from '../../types/document';
-import { DocumentJobStatus } from '../../types/ingestion';
+import { DocumentProcessStatus } from '../../types/index';
 import { DocumentStatusTag } from './DocumentStatusTag';
 import { DocumentActions } from './DocumentActions';
-import { getDocumentStatus, getJobProgress, formatFileSize } from '../../utils/documentUtils';
+import { getDocumentStatus, getProcessProgress, formatFileSize } from '../../utils/documentUtils';
+
+interface IndexingJob {
+  jobId: string;
+  documentIds: string[];
+  status: string;
+  progress: number;
+  startTime: Date;
+  type: 'single' | 'batch';
+}
 
 interface DocumentTableProps {
   documents: DocumentRecord[];
@@ -13,28 +22,26 @@ interface DocumentTableProps {
   loading: boolean;
   selectedRowKeys: string[];
   selectionState: SelectionState;
-  documentJobStatuses: Map<string, DocumentJobStatus>;
+  documentProcessStatuses: Map<string, DocumentProcessStatus>;
   lastTagDirectoryUpdateTime?: string;
-  ingestionStats?: {
-    total_chunks: number;
-    tagged_chunks: number;
-    untagged_chunks: number;
-    tagging_completion_rate: number;
+  indexStats?: {
+    total_fragments: number;
+    indexed_fragments: number;
+    pending_fragments: number;
+    vector_count: number;
+    last_index_time?: string;
   };
-  taggingJobStatuses?: Map<string, any>;
+  activeJobs?: Map<string, IndexingJob>;
   onSelectionChange: (selectedRowKeys: string[]) => void;
   onSelectAll: () => void;
   onSelectNone: () => void;
   onPreview: (documentId: string) => void;
   onDownload: (documentId: string, filename: string) => void;
-  onIngest: (documentId: string) => void;
-  onReIngest: (documentId: string) => void;
-  onTag: (documentId: string) => void;
-  onReTag: (documentId: string) => void;
+  onIndex: (documentId: string) => void;
+  onReIndex: (documentId: string) => void;
   onCancel: (documentId: string) => void;
   onDelete: (documentId: string) => void;
-  ingestLoading?: boolean;
-  taggingLoading?: boolean;
+  indexLoading?: boolean;
 }
 
 export const DocumentTable: React.FC<DocumentTableProps> = ({
@@ -43,24 +50,31 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   loading,
   selectedRowKeys,
   selectionState,
-  documentJobStatuses,
+  documentProcessStatuses,
   lastTagDirectoryUpdateTime,
-  ingestionStats,
-  taggingJobStatuses,
+  indexStats,
+  activeJobs = new Map(),
   onSelectionChange,
   onSelectAll,
   onSelectNone,
   onPreview,
   onDownload,
-  onIngest,
-  onReIngest,
-  onTag,
-  onReTag,
+  onIndex,
+  onReIndex,
   onCancel,
   onDelete,
-  ingestLoading = false,
-  taggingLoading = false
+  indexLoading = false
 }) => {
+  // 检查文档是否在活跃任务中
+  const isDocumentInActiveJob = (documentId: string): IndexingJob | null => {
+    for (const job of activeJobs.values()) {
+      if (job.documentIds.includes(documentId)) {
+        return job;
+      }
+    }
+    return null;
+  };
+
   const rowSelection: TableRowSelection<DocumentRecord> = {
     selectedRowKeys,
     onChange: (selectedRowKeys: Key[]) => {
@@ -80,6 +94,13 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
         }}
       />
     ),
+    getCheckboxProps: (record: DocumentRecord) => {
+      // 如果文档正在索引中，禁用选择
+      const activeJob = isDocumentInActiveJob(record.document_id);
+      return {
+        disabled: !!activeJob
+      };
+    }
   };
 
   const columns: ColumnsType<DocumentRecord> = [
@@ -106,28 +127,52 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       title: '上传时间',
       dataIndex: 'upload_at',
       key: 'upload_at',
-      render: (date: string) => new Date(date).toLocaleString(),
+      render: (date: string) => date ? new Date(date).toLocaleString() : '-',
     },
     {
-      title: '最后摄入时间',
+      title: '最后索引时间',
       dataIndex: 'last_ingest_time',
       key: 'last_ingest_time',
-      render: (date: string) => date ? new Date(date).toLocaleString() : '未摄入',
+      render: (date: string) => date ? new Date(date).toLocaleString() : '未索引',
     },
     {
       title: '状态',
       key: 'status',
       render: (_: any, record: DocumentRecord) => {
-        const status = getDocumentStatus(record, documentJobStatuses, lastTagDirectoryUpdateTime, ingestionStats, taggingJobStatuses);
-        const jobStatus = documentJobStatuses.get(record.document_id);
-        const progress = getJobProgress(record.document_id, documentJobStatuses);
+        const activeJob = isDocumentInActiveJob(record.document_id);
+        
+        // 如果文档在活跃任务中，显示任务状态
+        if (activeJob) {
+          const processStatus = documentProcessStatuses.get(record.document_id);
+          return (
+            <DocumentStatusTag
+              status={DocumentStatus.INGESTING}
+              processStatus={{
+                document_id: record.document_id,
+                parse_status: 'completed',
+                index_status: 'processing' as any,
+                fragment_count: processStatus?.fragment_count || 0,
+                indexed_fragment_count: 0,
+                last_updated: new Date().toISOString(),
+                job_id: activeJob.jobId
+              }}
+              progress={activeJob.progress}
+              chunkCount={processStatus?.indexed_fragment_count || 0}
+            />
+          );
+        }
+
+        // 否则显示正常状态
+        const status = getDocumentStatus(record, documentProcessStatuses, lastTagDirectoryUpdateTime, indexStats);
+        const processStatus = documentProcessStatuses.get(record.document_id);
+        const progress = getProcessProgress(record.document_id, documentProcessStatuses);
 
         return (
           <DocumentStatusTag
             status={status}
-            jobStatus={jobStatus}
+            processStatus={processStatus}
             progress={progress}
-            chunkCount={record.chunk_count}
+            chunkCount={processStatus?.indexed_fragment_count || 0}
           />
         );
       },
@@ -136,11 +181,33 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       title: '操作',
       key: 'actions',
       render: (_: any, record: DocumentRecord) => {
-        const status = getDocumentStatus(record, documentJobStatuses, lastTagDirectoryUpdateTime, ingestionStats, taggingJobStatuses);
-        const jobStatus = documentJobStatuses.get(record.document_id);
+        const activeJob = isDocumentInActiveJob(record.document_id);
+        
+        // 如果文档在活跃任务中，显示任务相关的操作
+        if (activeJob) {
+          return (
+            <DocumentActions
+              documentId={record.document_id}
+              filename={record.document.filename}
+              status={DocumentStatus.INGESTING}
+              canCancel={true}
+              onPreview={onPreview}
+              onDownload={onDownload}
+              onIndex={onIndex}
+              onReIndex={onReIndex}
+              onCancel={onCancel}
+              onDelete={onDelete}
+              indexLoading={true}
+              isProcessing={true}
+            />
+          );
+        }
+
+        // 否则显示正常操作
+        const status = getDocumentStatus(record, documentProcessStatuses, lastTagDirectoryUpdateTime, indexStats);
+        const processStatus = documentProcessStatuses.get(record.document_id);
         const isProcessing = status === DocumentStatus.INGESTING;
-        const isTagging = status === DocumentStatus.TAGGING;
-        const canCancel = isProcessing && !!jobStatus?.job_id;
+        const canCancel = isProcessing && !!processStatus?.job_id;
 
         return (
           <DocumentActions
@@ -150,16 +217,12 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
             canCancel={canCancel}
             onPreview={onPreview}
             onDownload={onDownload}
-            onIngest={onIngest}
-            onReIngest={onReIngest}
-            onTag={onTag}
-            onReTag={onReTag}
+            onIndex={onIndex}
+            onReIndex={onReIndex}
             onCancel={onCancel}
             onDelete={onDelete}
-            ingestLoading={ingestLoading}
-            taggingLoading={taggingLoading}
+            indexLoading={indexLoading}
             isProcessing={isProcessing}
-            isTagging={isTagging}
           />
         );
       },

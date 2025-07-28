@@ -15,6 +15,20 @@ export const LoginPage: React.FC = () => {
   const loginMutation = useMutation({
     mutationFn: authService.login,
     onSuccess: (data) => {
+      console.log('Login success data:', data); // 添加调试信息
+      
+      if (!data.access_token) {
+        console.error('No access_token in response:', data);
+        message.error('登录响应格式错误：缺少访问令牌');
+        return;
+      }
+      
+      if (!data.user) {
+        console.error('No user in response:', data);
+        message.error('登录响应格式错误：缺少用户信息');
+        return;
+      }
+      
       localStorage.setItem('access_token', data.access_token);
       setUser(data.user);
       message.success('登录成功');
@@ -22,6 +36,7 @@ export const LoginPage: React.FC = () => {
     },
     onError: (error: any) => {
       console.error('Login error:', error);
+      console.error('Error response:', error.response);
       
       let errorMessage = '登录失败，请检查用户名和密码';
       

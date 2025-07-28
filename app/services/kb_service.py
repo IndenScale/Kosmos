@@ -187,8 +187,8 @@ class KBService:
 
     def update_tag_dictionary(self, kb_id: str, tag_data: TagDictionaryUpdate) -> KnowledgeBase:
         """更新标签字典"""
-        from sqlalchemy import inspect
         from sqlalchemy.orm.attributes import flag_modified
+        from datetime import datetime
         
         kb = self.get_kb_by_id(kb_id)
         if not kb:
@@ -197,80 +197,26 @@ class KBService:
                 detail="Knowledge base not found"
             )
 
-        logger.debug("更新前对象状态调试:")
-        inspector = inspect(kb)
-        logger.debug(f"   对象状态: {inspector.persistent}")
-        logger.debug(f"   已修改字段: {inspector.modified}")
-        logger.debug(f"   当前标签字典: {kb.tag_dictionary}")
-        logger.debug(f"   当前字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
-
-        if tag_data.tag_dictionary:
-            # 先保存旧字典用于比较
-            old_dict = kb.tag_dictionary
-            kb.tag_dictionary = tag_data.tag_dictionary
-            
-            # 强制标记字段为已修改
-            flag_modified(kb, "tag_dictionary")
-            
-            logger.debug("字典更新对比:")
-            logger.debug(f"   旧字典大小: {len(str(old_dict)) if old_dict else 0} 字符")
-            logger.debug(f"   新字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
-            logger.debug(f"   字典是否相同: {old_dict == kb.tag_dictionary}")
-            
-        else:
-            # TODO: 使用LLM生成标签字典
-            # 这里暂时返回一个示例字典
-            sample_dict = {
-                "技术": {
-                    "编程语言": ["Python", "JavaScript", "Java"],
-                    "框架": ["FastAPI", "React", "Spring"]
-                },
-                "业务": {
-                    "产品": ["需求分析", "产品设计"],
-                    "运营": ["用户增长", "数据分析"]
-                }
-            }
-            # 直接设置字典，让SQLAlchemy的类型转换器处理
-            kb.tag_dictionary = sample_dict
-            # 强制标记字段为已修改
-            flag_modified(kb, "tag_dictionary")
-
-        # 记录标签字典更新时间
-        from datetime import datetime
-        kb.last_tag_directory_update_time = datetime.now()
+        # 直接更新标签字典
+        kb.tag_dictionary = tag_data.tag_dictionary
         
-        logger.debug("更新后对象状态调试:")
-        inspector = inspect(kb)
-        logger.debug(f"   对象状态: {inspector.persistent}")
-        logger.debug(f"   已修改字段: {inspector.modified}")
-        logger.debug(f"   pending标识: {inspector.pending}")
+        # 强制标记字段为已修改
+        flag_modified(kb, "tag_dictionary")
+        
+        # 记录标签字典更新时间
+        kb.last_tag_dictionary_update_time = datetime.now()
         
         logger.info(f"更新标签字典: KB {kb_id}")
-        logger.info(f"   新字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
-        logger.info(f"   更新时间: {kb.last_tag_directory_update_time}")
-
+        
         try:
-            logger.debug("执行数据库提交...")
             self.db.commit()
-            logger.debug("数据库提交成功")
-            
-            logger.debug("刷新对象状态...")
             self.db.refresh(kb)
-            logger.debug("对象状态刷新成功")
-            
         except Exception as e:
             logger.error(f"数据库操作失败: {e}")
             self.db.rollback()
             raise e
         
         logger.info("标签字典已成功保存到数据库")
-        
-        # 验证更新结果
-        logger.debug("最终验证:")
-        logger.debug(f"   更新后字典大小: {len(str(kb.tag_dictionary)) if kb.tag_dictionary else 0} 字符")
-        if kb.tag_dictionary and len(str(kb.tag_dictionary)) > 100:
-            logger.debug(f"   字典前100字符: {str(kb.tag_dictionary)[:100]}...")
-        
         return kb
 
     def get_outdated_documents(self, kb_id: str) -> List[dict]:
@@ -321,3 +267,53 @@ class KBService:
             "chunk_count": chunk_count,
             "tag_dictionary": kb.tag_dictionary if kb.tag_dictionary else {}
         }
+
+    def get_kb_with_model_configs(self, kb_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """获取知识库详情，包含模型配置信息"""
+        from app.services.credential_service import credential_service
+        from app.schemas.credential import CredentialResponse, KBModelConfigResponse, KBModelConfigsResponse
+        
+        kb = self.get_kb_by_id(kb_id)
+        if not kb:
+            return None
+        
+        # 检查用户权限
+        member_role = self.get_member_role(kb_id, user_id)
+        if not member_role:
+            return None
+        
+        try:
+            # 获取模型配置
+            configs = credential_service.get_kb_model_configs(
+                db=self.db,
+                kb_id=kb_id,
+                user_id=user_id
+            )
+            
+            # 构造配置响应
+            config_responses = []
+            for config in configs:
+                # 使用credential_service的智能方法获取配置响应
+                config_response = credential_service.get_kb_model_config_response(
+                    db=self.db,
+                    config=config,
+                    user_id=user_id
+                )
+                config_responses.append(config_response)
+            
+            model_configs = KBModelConfigsResponse(
+                kb_id=kb_id,
+                configs=config_responses
+            )
+            
+            return {
+                "kb": kb,
+                "model_configs": model_configs
+            }
+            
+        except Exception as e:
+            logger.warning(f"获取知识库 {kb_id} 的模型配置失败: {e}")
+            return {
+                "kb": kb,
+                "model_configs": None
+            }

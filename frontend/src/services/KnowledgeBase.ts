@@ -20,7 +20,7 @@ export const KnowledgeBaseService = {
   },
 
   async updateKB(kbId: string, data: KBUpdate): Promise<KnowledgeBase> {
-    const response = await apiClient.patch(`/api/v1/kbs/${kbId}`, data);
+    const response = await apiClient.put(`/api/v1/kbs/${kbId}`, data);
     return response.data;
   },
 

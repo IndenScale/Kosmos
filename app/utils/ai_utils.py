@@ -2,9 +2,6 @@ import openai
 import os
 from typing import List, Dict, Any
 import json
-from dotenv import load_dotenv
-
-load_dotenv()
 
 def get_openai_client():
     """获取OpenAI客户端实例"""

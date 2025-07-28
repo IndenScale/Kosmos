@@ -117,12 +117,21 @@ class AsyncTaskQueue:
     async def _worker(self):
         """队列工作器"""
         print("任务队列worker开始运行")
+        last_queue_full_log_time = 0
+        queue_full_log_interval = 10  # 队列满时每10秒打印一次日志
+        
         while self._running:
             try:
                 # 检查是否可以处理新任务
                 if len(self.running_tasks) >= self.max_concurrent_tasks:
-                    print(f"达到最大并发任务数 {self.max_concurrent_tasks}，等待...")
-                    await asyncio.sleep(0.1)
+                    current_time = time.time()
+                    # 只在首次达到最大并发数或距离上次日志超过间隔时间时打印日志
+                    if current_time - last_queue_full_log_time >= queue_full_log_interval:
+                        print(f"达到最大并发任务数 {self.max_concurrent_tasks}，等待中... (队列大小: {self.pending_queue.qsize()})")
+                        last_queue_full_log_time = current_time
+                    
+                    # 增加等待时间，减少轮询频率
+                    await asyncio.sleep(2.0)  # 从0.1秒增加到2秒
                     continue
 
                 # 获取待处理任务

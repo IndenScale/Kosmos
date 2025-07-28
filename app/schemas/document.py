@@ -14,7 +14,7 @@ class DocumentResponse(DocumentBase):
     id: str
     created_at: datetime
     file_size: int = 0  # 直接作为字段，不使用computed_field
-    file_path: str = ""  # 直接作为字段，不使用computed_field
+    file_url: str = ""  # 重命名为file_url以反映URL结构
 
     class Config:
         from_attributes = True

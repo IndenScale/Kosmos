@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Input, Spin, Alert, Empty, Row, Col, Modal, Typography } from 'antd';
+import { Input, Button, Switch, Space, Row, Col, Spin, Alert, Empty, Typography } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { searchService } from '../../services/searchService';
-import { documentService } from '../../services/documentService';
 import { SearchResult, TagType, ActiveTag } from '../../types/search';
 import { DocumentRecord } from '../../types/document';
-import { QueryParser, getTagColor, getResultTagColor, handleFileDownload } from '../../utils/searchUtils';
-import { SearchResultCard } from '../../components/SemanticSearch/SearchResultCard';
-import { RecommendedTags } from '../../components/SemanticSearch/RecommendedTags';
+import { QueryParser } from '../../utils/searchUtils';
+import { handleFileDownload, getTagColor, getResultTagColor } from '../../utils/searchUtils';
+import { documentService } from '../../services/documentService';
+import { searchService } from '../../services/searchService';
 import { ActiveTagsBar } from '../../components/SemanticSearch/ActiveTagsBar';
+import { RecommendedTagsCard, SearchResultList } from '../../components/search';
 import { SearchPageState } from '../../types/search';
 
 const { Search } = Input;
@@ -23,20 +23,24 @@ export const KBSearchPage: React.FC = () => {
     searchText: '',
     activeTags: [],
     searchQuery: '',
-    expandedChunk: null,
-    modalOpen: false,
-    hoveredResult: null
+    includeScreenshots: false,
+    includeFigures: false
   });
 
-  // 构建完整查询字符串
+  // 构建完整查询字符串 - 直接使用用户输入的文本
   const fullQuery = useMemo(() => {
-    return QueryParser.buildQuery(state.searchText, state.activeTags);
-  }, [state.searchText, state.activeTags]);
+    return state.searchText;
+  }, [state.searchText]);
 
   // 执行搜索
   const { data: searchData, isLoading, error } = useQuery({
-    queryKey: ['search', kbId, state.searchQuery],
-    queryFn: () => searchService.searchKnowledgeBase(kbId!, { query: state.searchQuery, top_k: 10 }),
+    queryKey: ['search', kbId, state.searchQuery, state.includeScreenshots, state.includeFigures],
+    queryFn: () => searchService.searchKnowledgeBase(kbId!, { 
+      query: state.searchQuery, 
+      top_k: 10,
+      include_screenshots: state.includeScreenshots,
+      include_figures: state.includeFigures
+    }),
     enabled: !!kbId && !!state.searchQuery,
   });
 
@@ -64,6 +68,7 @@ export const KBSearchPage: React.FC = () => {
   const handleSearch = (value: string) => {
     const trimmedValue = value.trim();
     if (trimmedValue) {
+      // 解析查询字符串，提取标签和文本
       const newActiveTags = QueryParser.getActiveTagsFromQuery(trimmedValue);
       const parsed = QueryParser.parse(trimmedValue);
 
@@ -71,7 +76,7 @@ export const KBSearchPage: React.FC = () => {
         ...prev,
         searchQuery: trimmedValue,
         activeTags: newActiveTags,
-        searchText: parsed.text
+        // 保持原始输入文本不变，不更新searchText
       }));
     }
   };
@@ -79,13 +84,11 @@ export const KBSearchPage: React.FC = () => {
   // 处理输入框变化
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
-    const newActiveTags = QueryParser.getActiveTagsFromQuery(inputValue);
-    const parsed = QueryParser.parse(inputValue);
     
+    // 直接更新搜索文本，不进行解析和trim
     setState(prev => ({ 
       ...prev, 
-      searchText: parsed.text,
-      activeTags: newActiveTags
+      searchText: inputValue
     }));
   };
 
@@ -111,10 +114,14 @@ export const KBSearchPage: React.FC = () => {
       newActiveTags.push({ tag, type: TagType.LIKE });
     }
 
-    const newQuery = QueryParser.buildQuery(state.searchText, newActiveTags);
+    // 解析当前输入文本，获取纯文本部分
+    const parsed = QueryParser.parse(state.searchText);
+    const newQuery = QueryParser.buildQuery(parsed.text, newActiveTags);
+    
     setState(prev => ({
       ...prev,
       activeTags: newActiveTags,
+      searchText: newQuery, // 更新输入框内容
       searchQuery: newQuery.trim() ? newQuery : prev.searchQuery
     }));
   };
@@ -122,15 +129,6 @@ export const KBSearchPage: React.FC = () => {
   // 处理文件下载
   const handleDownload = async (documentId: string, filename: string) => {
     await handleFileDownload(kbId!, documentId, filename, documentService.downloadDocument);
-  };
-
-  // 展开查看原文
-  const handleExpandChunk = (chunkId: string) => {
-    setState(prev => ({
-      ...prev,
-      expandedChunk: chunkId,
-      modalOpen: true
-    }));
   };
 
   // 获取推荐标签
@@ -154,6 +152,28 @@ export const KBSearchPage: React.FC = () => {
           allowClear
           className="shadow-sm"
         />
+        
+        {/* 搜索选项 */}
+        <div className="mt-3">
+          <Space size="large">
+            <Space>
+              <Switch
+                checked={state.includeScreenshots}
+                onChange={(checked) => setState(prev => ({ ...prev, includeScreenshots: checked }))}
+                size="small"
+              />
+              <span className="text-gray-600">包含截图</span>
+            </Space>
+            <Space>
+              <Switch
+                checked={state.includeFigures}
+                onChange={(checked) => setState(prev => ({ ...prev, includeFigures: checked }))}
+                size="small"
+              />
+              <span className="text-gray-600">包含插图</span>
+            </Space>
+          </Space>
+        </div>
       </div>
 
       {/* 激活标签栏 */}
@@ -185,65 +205,28 @@ export const KBSearchPage: React.FC = () => {
           )}
 
           {!isLoading && !error && searchData && (
-            <div>
-              <div className="mb-6">
-                <Text type="secondary" className="text-lg">
-                  找到 <span className="font-semibold text-blue-600">{searchData.results.length}</span> 个相关结果
-                </Text>
-              </div>
-
-              {searchData.results.length === 0 ? (
-                <Empty description="没有找到相关结果" className="py-12" />
-              ) : (
-                <div className="space-y-6">
-                  {searchData.results.map((result: SearchResult) => {
-                    const document = documentsData?.[result.document_id];
-                    const isHovered = state.hoveredResult === result.chunk_id;
-
-                    return (
-                      <SearchResultCard
-                        key={result.chunk_id}
-                        result={result}
-                        document={document}
-                        isHovered={isHovered}
-                        onMouseEnter={() => setState(prev => ({ ...prev, hoveredResult: result.chunk_id }))}
-                        onMouseLeave={() => setState(prev => ({ ...prev, hoveredResult: null }))}
-                        onExpand={handleExpandChunk}
-                        onDownload={handleDownload}
-                        onTagClick={handleTagClick}
-                        getResultTagColor={(tag) => getResultTagColor(tag, state.activeTags)}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <SearchResultList
+              results={searchData.results}
+              documents={documentsData || {}}
+              activeTags={state.activeTags}
+              includeScreenshots={state.includeScreenshots}
+              includeFigures={state.includeFigures}
+              onTagClick={handleTagClick}
+              onDownload={handleDownload}
+              getResultTagColor={(tag) => getResultTagColor(tag, state.activeTags)}
+            />
           )}
         </Col>
 
         {/* 右侧推荐标签栏 */}
         <Col span={6}>
-          <RecommendedTags
+          <RecommendedTagsCard
             tags={recommendedTags}
             onTagClick={handleTagClick}
             searchResultsLength={searchData?.results.length || 0}
           />
         </Col>
       </Row>
-
-      {/* 原文弹窗 */}
-      <Modal
-        title="原文内容"
-        width={800}
-        open={state.modalOpen}
-        onCancel={() => setState(prev => ({ ...prev, modalOpen: false }))}
-        footer={null}
-        className="top-8"
-      >
-        <div className="max-h-96 overflow-y-auto p-4 bg-gray-50 rounded">
-          {state.expandedChunk && searchData?.results.find(r => r.chunk_id === state.expandedChunk)?.content}
-        </div>
-      </Modal>
     </div>
   );
 };

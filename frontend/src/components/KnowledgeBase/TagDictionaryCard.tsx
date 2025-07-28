@@ -6,10 +6,9 @@ import {
   Space,
   Tooltip,
   Button,
-  Tabs,
-  Input,
   message,
-  Collapse
+  Collapse,
+  Input
 } from 'antd';
 import {
   TagsOutlined,
@@ -17,8 +16,6 @@ import {
   EditOutlined,
   SaveOutlined,
   CloseOutlined,
-  PlusOutlined,
-  DeleteOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { TagDictionary } from '../../types/knowledgeBase';
@@ -117,11 +114,9 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
   onCancel,
   loading = false
 }) => {
-  const [tagEditMode, setTagEditMode] = useState<'manual' | 'json'>('manual');
-  const [tagInput, setTagInput] = useState('');
-  const [editingTags, setEditingTags] = useState<TagDictionary>(tagDictionary);
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState<string>('');
+  const [editingTags, setEditingTags] = useState<TagDictionary>(tagDictionary);
 
   const totalTags = countTags(tagDictionary);
 
@@ -132,49 +127,6 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
       setJsonInput(JSON.stringify(tagDictionary, null, 2));
     }
   }, [isEditing, tagDictionary]);
-
-  // 手动编辑模式处理
-  const handleAddTag = (category: string) => {
-    if (!tagInput.trim()) return;
-
-    const newTags = { ...editingTags };
-    if (!newTags[category]) {
-      newTags[category] = [];
-    }
-    if (Array.isArray(newTags[category])) {
-      const tagArray = newTags[category] as string[];
-      if (!tagArray.includes(tagInput.trim())) {
-        tagArray.push(tagInput.trim());
-        setEditingTags(newTags);
-        setJsonInput(JSON.stringify(newTags, null, 2));
-      }
-    }
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (category: string, tag: string) => {
-    const newTags = { ...editingTags };
-    if (Array.isArray(newTags[category])) {
-      newTags[category] = (newTags[category] as string[]).filter(t => t !== tag);
-      if (newTags[category].length === 0) {
-        delete newTags[category];
-      }
-      setEditingTags(newTags);
-      setJsonInput(JSON.stringify(newTags, null, 2));
-    }
-  };
-
-  const handleAddCategory = () => {
-    if (!tagInput.trim()) return;
-
-    const newTags = { ...editingTags };
-    if (!newTags[tagInput.trim()]) {
-      newTags[tagInput.trim()] = [];
-      setEditingTags(newTags);
-      setJsonInput(JSON.stringify(newTags, null, 2));
-    }
-    setTagInput('');
-  };
 
   // JSON编辑模式处理
   const handleJsonChange = (value: string) => {
@@ -202,7 +154,7 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
       return;
     }
 
-    if (tagEditMode === 'json' && jsonError) {
+    if (jsonError) {
       message.error('请修复JSON格式错误');
       return;
     }
@@ -280,65 +232,33 @@ export const TagDictionaryCard: React.FC<TagDictionaryCardProps> = ({
           )}
         </div>
       ) : (
-        <div>
-          <Tabs
-            activeKey={tagEditMode}
-            onChange={(key) => setTagEditMode(key as 'manual' | 'json')}
-            className="mb-4"
-          >
-            <Tabs.TabPane tab="手动编辑" key="manual">
-              <div className="space-y-4">
-                <div>
-                  <Text strong>添加新分类：</Text>
-                  <div className="flex gap-2 mt-2">
-                    <Input
-                      placeholder="输入分类名称"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onPressEnter={handleAddCategory}
-                    />
-                    <Button 
-                      icon={<PlusOutlined />} 
-                      onClick={handleAddCategory}
-                      type="primary"
-                    >
-                      添加分类
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="border-t pt-4">
-                  <Text strong>当前标签结构：</Text>
-                  <div className="mt-2 max-h-96 overflow-y-auto">
-                    <TagDictionaryRenderer tagDict={editingTags} />
-                  </div>
-                </div>
-              </div>
-            </Tabs.TabPane>
-            <Tabs.TabPane tab="JSON 编辑" key="json">
-              <div className="space-y-4">
-                <div>
-                  <Text strong>JSON 格式编辑：</Text>
-                  <TextArea
-                    rows={12}
-                    value={jsonInput}
-                    onChange={(e) => handleJsonChange(e.target.value)}
-                    placeholder="请输入有效的JSON格式标签字典"
-                    className={jsonError ? 'border-red-500' : ''}
-                  />
-                  {jsonError && (
-                    <Text type="danger" className="text-sm">
-                      {jsonError}
-                    </Text>
-                  )}
-                </div>
-                
-                <div className="text-sm text-gray-500">
-                  <Text>格式说明：支持多层嵌套结构，叶子节点必须是字符串数组</Text>
-                </div>
-              </div>
-            </Tabs.TabPane>
-          </Tabs>
+        <div className="space-y-4">
+          <div>
+            <Text strong>JSON 格式编辑：</Text>
+            <div className="mt-2">
+              <TextArea
+                rows={12}
+                value={jsonInput}
+                onChange={(e) => handleJsonChange(e.target.value)}
+                placeholder="请输入有效的JSON格式标签字典，例如：&#10;{&#10;  &quot;技术&quot;: [&quot;Python&quot;, &quot;JavaScript&quot;],&#10;  &quot;业务&quot;: [&quot;产品设计&quot;, &quot;用户研究&quot;]&#10;}"
+                className={jsonError ? 'border-red-500' : ''}
+              />
+              {jsonError && (
+                <Text type="danger" className="text-sm mt-1 block">
+                  {jsonError}
+                </Text>
+              )}
+            </div>
+          </div>
+          
+          <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded">
+            <Text>
+              <strong>格式说明：</strong>
+              <br />• 支持多层嵌套结构，叶子节点必须是字符串数组
+              <br />• 示例：{"{"}"分类名": ["标签1", "标签2"]{"}"}
+              <br />• 当前预览：共 {Object.keys(editingTags).length} 个分类，{countTags(editingTags)} 个标签
+            </Text>
+          </div>
         </div>
       )}
     </Card>

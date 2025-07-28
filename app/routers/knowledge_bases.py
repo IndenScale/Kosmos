@@ -64,6 +64,7 @@ def list_my_knowledge_bases(
             tag_dictionary=tag_dict,
             milvus_collection_id=kb.milvus_collection_id,
             is_public=kb.is_public,
+            last_tag_dictionary_update_time=kb.last_tag_dictionary_update_time,
             created_at=kb.created_at
         )
         result.append(kb_data)
@@ -76,15 +77,20 @@ def get_knowledge_base(
     current_user: User = Depends(get_kb_or_public),
     db: Session = Depends(get_db)
 ):
-    """获取知识库详情"""
+    """获取知识库详情，包含模型配置信息"""
     kb_service = KBService(db)
-    kb = kb_service.get_kb_by_id(kb_id)
-
-    if not kb:
+    
+    # 使用新的方法获取知识库和模型配置
+    result = kb_service.get_kb_with_model_configs(kb_id, current_user.id)
+    
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Knowledge base not found"
         )
+    
+    kb = result["kb"]
+    model_configs = result["model_configs"]
 
     members = kb_service.get_kb_members(kb_id)
     member_responses = []
@@ -94,7 +100,7 @@ def get_knowledge_base(
             "username": member.user.username,
             "email": member.user.email,
             "role": member.role,
-            "created_at": member.created_at  # 修复：joined_at -> created_at
+            "created_at": member.created_at
         }
         member_responses.append(KBMemberResponse(**member_data))
 
@@ -111,13 +117,14 @@ def get_knowledge_base(
         name=kb.name,
         description=kb.description,
         owner_id=kb.owner_id,
-        owner_username=kb.owner.username,  # 添加缺失的 owner_username 字段
+        owner_username=kb.owner.username,
         tag_dictionary=tag_dict,
         milvus_collection_id=kb.milvus_collection_id,
         is_public=kb.is_public,
         created_at=kb.created_at,
-        last_tag_directory_update_time=kb.last_tag_directory_update_time,
-        members=member_responses
+        last_tag_dictionary_update_time=kb.last_tag_dictionary_update_time,
+        members=member_responses,
+        model_configs=model_configs
     )
 
 @router.put("/{kb_id}", response_model=KBResponse)
@@ -172,8 +179,9 @@ def get_knowledge_base_members(
     return [KBMemberResponse(
         user_id=member.user_id,
         username=member.user.username,
+        email=member.user.email,
         role=member.role,
-        joined_at=member.joined_at
+        created_at=member.created_at
     ) for member in members]
 
 @router.post("/{kb_id}/members", response_model=KBMemberResponse, status_code=status.HTTP_201_CREATED)
@@ -190,8 +198,9 @@ def add_knowledge_base_member(
     return KBMemberResponse(
         user_id=member.user_id,
         username=member.user.username,
+        email=member.user.email,
         role=member.role,
-        joined_at=member.joined_at
+        created_at=member.created_at
     )
 
 @router.delete("/{kb_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout as AntLayout, Menu, Dropdown, Avatar, Button, Space } from 'antd';
-import { UserOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, SearchOutlined } from '@ant-design/icons';
+import { UserOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, KeyOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -47,6 +47,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       key: '/dashboard/knowledge-bases',
       icon: <DatabaseOutlined />,
       label: '知识库管理',
+    },
+    {
+      key: '/dashboard/credentials',
+      icon: <KeyOutlined />,
+      label: '模型凭证管理',
     },
 ];
 

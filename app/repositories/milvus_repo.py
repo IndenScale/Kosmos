@@ -302,3 +302,26 @@ class MilvusRepository:
         except Exception as e:
             print(f"批量删除chunks失败: {e}")
             return False
+
+    def get_collection_count(self, collection_name: str) -> int:
+        """获取集合中的向量数量
+        
+        Args:
+            collection_name: Collection名称
+            
+        Returns:
+            int: 集合中的向量数量
+        """
+        try:
+            if not utility.has_collection(collection_name):
+                return 0
+                
+            collection = Collection(collection_name)
+            collection.load()  # 确保collection已加载
+            
+            # 获取集合的实体数量
+            return collection.num_entities
+            
+        except Exception as e:
+            print(f"获取集合数量失败: {e}")
+            return 0

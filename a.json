@@ -1,0 +1,9 @@
+{
+  "model_type": "embedding",
+  "model_name": "text-embedding-v4",
+  "config_params": {
+    "dimensions": 1024
+  },
+  "kb_id": "0783d438-044a-4781-b9e5-f3bfd8da8f71",
+  "credential_id": "7be1d902-61a5-4821-b388-26ac1da1982d"
+}

@@ -1,9 +1,9 @@
-export interface PhysicalFile {
+export interface PhysicalDocument {
   id: string;
   filename: string;
   file_type: string;
   file_size: number;
-  file_path: string;
+  file_url: string;  // 改为file_url以反映URL结构
   created_at: string;
 }
 
@@ -12,7 +12,7 @@ export interface Document {
   filename: string;
   file_type: string;
   file_size: number;
-  file_path: string;
+  file_url: string;  // 改为file_url以反映URL结构
   created_at: string;
 }
 
@@ -65,27 +65,20 @@ export enum DocumentStatus {
   NOT_INGESTED = 'not_ingested',
   INGESTING = 'ingesting',
   INGESTED = 'ingested',
-  INGESTED_NOT_TAGGED = 'ingested_not_tagged',  // 已摄入但未标注
-  TAGGING = 'tagging',                         // 标注中
-  TAGGED = 'tagged',                           // 已标注
-  OUTDATED = 'outdated',                       // 标签过时
-  TAGGING_OUTDATED = 'tagging_outdated'        // 标注过时
+  OUTDATED = 'outdated'
 }
 
 // 文档操作类型
 export enum DocumentAction {
   PREVIEW = 'preview',
   DOWNLOAD = 'download',
-  INGEST = 'ingest',
-  TAG = 'tag',           // 标注
-  RETAG = 'retag',       // 重新标注
+  INDEX = 'index',
   DELETE = 'delete'
 }
 
 // 批量操作类型
 export enum BatchAction {
   DOWNLOAD = 'download',
-  INGEST = 'ingest',
-  TAG = 'tag',           // 批量标注
+  INDEX = 'index',
   DELETE = 'delete'
 }

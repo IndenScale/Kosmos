@@ -3,22 +3,21 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base # 导入 declarative_base
+from dotenv import load_dotenv
+load_dotenv()
+# 数据库连接配置
+POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "kosmos")
 
+SQLALCHEMY_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
-# 数据库文件路径
-SQLALCHEMY_DATABASE_URL = "sqlite:///./db/kosmos.db"
-
-# 2. 从 URL 中提取文件路径，并获取其所在的目录
-db_file_path = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "")
-db_directory = os.path.dirname(db_file_path)
-
-# 3. 如果目录非空且不存在，则创建它
-if db_directory and not os.path.exists(db_directory):
-    os.makedirs(db_directory)
-    print(f"数据库目录 '{db_directory}' 已创建。")
+print(SQLALCHEMY_DATABASE_URL)
 
 # 创建数据库引擎
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
 # 创建会话
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -38,7 +38,20 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
 
   // 用户主动请求查看截图时的处理函数
   const handleViewScreenshots = async () => {
-    if (!result.screenshot_ids || result.screenshot_ids.length === 0) {
+    // 支持v2.0的related_screenshots或v1.0的screenshot_ids
+    let screenshotIds: string[] = [];
+    
+    if (result.related_screenshots && result.related_screenshots.length > 0) {
+      // v2.0格式：从对象数组中提取ID
+      screenshotIds = result.related_screenshots.map(item => 
+        typeof item === 'string' ? item : item.id || item.screenshot_id || ''
+      ).filter(id => id !== '');
+    } else if (result.screenshot_ids && result.screenshot_ids.length > 0) {
+      // v1.0格式：直接使用字符串数组
+      screenshotIds = result.screenshot_ids;
+    }
+    
+    if (screenshotIds.length === 0) {
       return;
     }
 
@@ -48,7 +61,7 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
       
       try {
         // 获取截图信息
-        const screenshotInfos = await searchService.getScreenshotsBatch(result.screenshot_ids);
+        const screenshotInfos = await searchService.getScreenshotsBatch(screenshotIds);
         const sortedScreenshots = screenshotInfos.sort((a, b) => a.page_number - b.page_number);
         setScreenshots(sortedScreenshots);
 
@@ -312,7 +325,7 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
             type="text"
             size="small"
             icon={<ExpandAltOutlined />}
-            onClick={() => onExpand(result.chunk_id)}
+            onClick={() => onExpand(result.fragment_id || result.chunk_id || '')}
             className="hover:bg-blue-50 hover:text-blue-600"
           >
             展开
@@ -328,8 +341,9 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
               下载
             </Button>
           )}
-          {/* 查看截图按钮 - 只有当有截图ID时才显示 */}
-          {result.screenshot_ids && result.screenshot_ids.length > 0 && (
+          {/* 查看截图按钮 - 支持v2.0的related_screenshots或v1.0的screenshot_ids */}
+          {((result.related_screenshots && result.related_screenshots.length > 0) || 
+            (result.screenshot_ids && result.screenshot_ids.length > 0)) && (
             <Button
               type="text"
               size="small"
@@ -340,7 +354,11 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
             >
               {screenshotRequested 
                 ? (showScreenshots ? '隐藏截图' : '显示截图')
-                : `查看截图(${result.screenshot_ids.length})`
+                : `查看截图(${
+                    result.related_screenshots?.length || 
+                    result.screenshot_ids?.length || 
+                    0
+                  })`
               }
             </Button>
           )}

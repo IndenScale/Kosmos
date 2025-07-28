@@ -38,11 +38,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KnowledgeBaseService } from '../../services/KnowledgeBase';
 import { TagDictionary } from '../../types/knowledgeBase';
 
-import {BasicInfoCard} from '../../components/KnowledgeBase/BasicInfoCard';
-import {MemberCard} from '../../components/KnowledgeBase/MemberCard';
-import {StatsCard} from '../../components/KnowledgeBase/StatsCard';
-import {TagDictionaryCard} from '../../components/KnowledgeBase/TagDictionaryCard';
-import {KBInfoCard} from '../../components/KnowledgeBase/KBInfoCard';
+import { BasicInfoCard } from '../../components/KnowledgeBase/BasicInfoCard';
+import { TagDictionaryCard } from '../../components/KnowledgeBase/TagDictionaryCard';
+import { StatsCard } from '../../components/KnowledgeBase/StatsCard';
+import { MemberCard } from '../../components/KnowledgeBase/MemberCard';
+import { ModelConfigCard } from '../../components/KnowledgeBase/ModelConfigCard';
 
 import { countTags, cleanTagDictionary } from '../../utils/tagDictionaryUtils';
 const { TextArea } = Input;
@@ -218,19 +218,18 @@ export const KBOverviewPage: React.FC = () => {
 
         {/* 右侧边栏 */}
         <Col xs={24} lg={8}>
-          <KBInfoCard 
-            kbId={kbId!} 
-            kbName={kbDetail?.name || ''} 
-          />
-          
-          <StatsCard
+          <StatsCard 
             documentCount={kbStats?.document_count || 0}
             chunkCount={kbStats?.chunk_count || 0}
             tagCategoryCount={Object.keys(displayTagDict).length}
             totalTags={totalTags}
           />
-
-          <MemberCard members={kbDetail?.members || []} />
+          <MemberCard 
+            members={kbDetail?.members || []} 
+          />
+          <ModelConfigCard 
+            kbId={kbId!} 
+          />
         </Col>
       </Row>
     </div>

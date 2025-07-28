@@ -15,8 +15,8 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // 确保Content-Type正确设置
-  if (!config.headers['Content-Type']) {
+  // 只在没有设置Content-Type且不是FormData时设置默认Content-Type
+  if (!config.headers['Content-Type'] && !(config.data instanceof FormData)) {
     config.headers['Content-Type'] = 'application/json';
   }
   return config;
@@ -60,8 +60,10 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
+      // 避免在响应拦截器中直接操作DOM，而是通过事件通知
       localStorage.removeItem('access_token');
-      window.location.href = '/login';
+      // 发送自定义事件通知应用处理登出
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
     return Promise.reject(error);
   }

@@ -9,12 +9,14 @@ pymilvus
 python-dotenv
 openai
 typing
+psycopg2-binary
 pydantic
 pydantic[email]
 pydantic_settings
 python-multipart
 pymilvus
 python-jose[cryptography]
+python-magic-bin
 passlib
 python-dotenv
 uvicorn

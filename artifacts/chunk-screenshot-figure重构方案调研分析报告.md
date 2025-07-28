@@ -16,8 +16,8 @@
   - `IngestionJob` 管理摄入任务的状态。
 
 - **Document (`app/models/document.py`)**:
-  - `Document` 表示用户上传的文档记录，关联到唯一的 `PhysicalFile`。
-  - `PhysicalFile` 用于内容去重。
+  - `Document` 表示用户上传的文档记录，关联到唯一的 `PhysicalDocument`。
+  - `PhysicalDocument` 用于内容去重。
 
 - **PageScreenshot (`app/models/page_screenshot.py`)**:
   - `PageScreenshot` 表示 PDF 文档单页的截图，记录了截图文件路径、页码等信息。
@@ -78,22 +78,22 @@ class Fragment(Base):
     """文档片段基类"""
     __tablename__ = "fragments"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(String, primary_key=True)  # UUID
     kb_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)
     fragment_index = Column(Integer, nullable=False)  # 在文档中的顺序
     fragment_type = Column(String, nullable=False)  # 'text', 'screenshot', 'figure'
-    
+
     # 可选的原始内容 (如文本、文件路径等)
     raw_content = Column(Text, nullable=True)
-    
+
     # 可选的元数据 (JSON格式)
     metadata = Column(Text, nullable=True)  # 例如: {"page_number": 1, "description": "..."}
-    
+
     # 可选的标签 (JSON数组格式)
     tags = Column(Text, nullable=True)
-    
+
     created_at = Column(DateTime, default=func.now())
 ```
 

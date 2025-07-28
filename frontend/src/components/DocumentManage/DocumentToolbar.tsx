@@ -5,7 +5,7 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   PlayCircleOutlined,
-  TagOutlined
+  FileTextOutlined
 } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 
@@ -13,11 +13,11 @@ interface DocumentToolbarProps {
   selectedCount: number;
   onBatchDownload: () => void;
   onBatchProcess: () => void;
-  onBatchTag: () => void;
+  onBatchParse: () => void;
   onBatchDelete: () => void;
   uploadProps: UploadProps;
   batchProcessLoading?: boolean;
-  batchTagLoading?: boolean;
+  batchParseLoading?: boolean;
   batchDeleteLoading?: boolean;
 }
 
@@ -25,11 +25,11 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({
   selectedCount,
   onBatchDownload,
   onBatchProcess,
-  onBatchTag,
+  onBatchParse,
   onBatchDelete,
   uploadProps,
   batchProcessLoading = false,
-  batchTagLoading = false,
+  batchParseLoading = false,
   batchDeleteLoading = false
 }) => {
   return (
@@ -44,21 +44,21 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({
           批量下载 ({selectedCount})
         </Button>
         <Button
+          icon={<FileTextOutlined />}
+          onClick={onBatchParse}
+          disabled={selectedCount === 0 || batchParseLoading}
+          loading={batchParseLoading}
+        >
+          批量解析 ({selectedCount})
+        </Button>
+        <Button
           type="primary"
           icon={<PlayCircleOutlined />}
           onClick={onBatchProcess}
           disabled={selectedCount === 0 || batchProcessLoading}
           loading={batchProcessLoading}
         >
-          批量摄取 ({selectedCount})
-        </Button>
-        <Button
-          icon={<TagOutlined />}
-          onClick={onBatchTag}
-          disabled={selectedCount === 0 || batchTagLoading}
-          loading={batchTagLoading}
-        >
-          批量标注 ({selectedCount})
+          批量索引 ({selectedCount})
         </Button>
         <Button
           danger

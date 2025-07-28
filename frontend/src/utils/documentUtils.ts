@@ -1,43 +1,62 @@
 import { DocumentRecord, DocumentStatus } from '../types/document';
-import { IngestionJobStatus, DocumentJobStatus } from '../types/ingestion';
+import { DocumentProcessStatus, IndexStatus } from '../types/index';
 
 /**
  * 获取文档状态
  */
 export const getDocumentStatus = (
   document: DocumentRecord,
-  documentJobStatuses: Map<string, DocumentJobStatus>,
+  documentProcessStatuses: Map<string, DocumentProcessStatus>,
   lastTagDirectoryUpdateTime?: string,
-  ingestionStats?: {
-    total_chunks: number;
-    tagged_chunks: number;
-    untagged_chunks: number;
-    tagging_completion_rate: number;
-  },
-  taggingJobStatuses?: Map<string, any> // 标注任务状态
+  indexStats?: {
+    total_fragments: number;
+    indexed_fragments: number;
+    pending_fragments: number;
+    vector_count: number;
+    last_index_time?: string;
+  }
 ): DocumentStatus => {
-  const jobStatus = documentJobStatuses.get(document.document_id);
-  const taggingJobStatus = taggingJobStatuses?.get(document.document_id);
+  const processStatus = documentProcessStatuses.get(document.document_id);
 
-  // 检查是否正在标注中
-  if (taggingJobStatus && (
-    taggingJobStatus.status === 'pending' ||
-    taggingJobStatus.status === 'running'
-  )) {
-    return DocumentStatus.TAGGING;
+  // 如果有处理状态信息，基于实际的fragment和index数量判断
+  if (processStatus) {
+    const { fragment_count, indexed_fragment_count } = processStatus;
+    
+    // 如果没有fragment，说明文档未解析
+    if (fragment_count === 0) {
+      return DocumentStatus.NOT_INGESTED;
+    }
+    
+    // 如果有fragment但没有index，说明正在索引或等待索引
+    if (indexed_fragment_count === 0) {
+      return DocumentStatus.INGESTING;
+    }
+    
+    // 如果fragment数量等于index数量，说明索引完成
+    if (fragment_count === indexed_fragment_count) {
+      // 检查是否过时
+      if (lastTagDirectoryUpdateTime && processStatus.last_updated) {
+        const lastProcessTime = new Date(processStatus.last_updated);
+        const lastUpdateTime = new Date(lastTagDirectoryUpdateTime);
+        if (lastUpdateTime > lastProcessTime) {
+          return DocumentStatus.OUTDATED;
+        }
+      }
+      return DocumentStatus.INGESTED;
+    }
+    
+    // 如果有部分index，说明正在索引中
+    if (indexed_fragment_count > 0 && indexed_fragment_count < fragment_count) {
+      return DocumentStatus.INGESTING;
+    }
+    
+    // 其他情况视为索引失败
+    return DocumentStatus.NOT_INGESTED;
   }
 
-  // 检查是否正在摄取中
-  if (jobStatus && (
-    jobStatus.status === IngestionJobStatus.PENDING ||
-    jobStatus.status === IngestionJobStatus.RUNNING
-  )) {
-    return DocumentStatus.INGESTING;
-  }
-
-  // 检查是否已摄取
+  // 回退到基于文档信息的判断
   if (document.chunk_count && document.chunk_count > 0) {
-    // 检查是否过时（摄取层面）
+    // 检查是否过时
     if (lastTagDirectoryUpdateTime && document.last_ingest_time) {
       const lastIngestTime = new Date(document.last_ingest_time);
       const lastUpdateTime = new Date(lastTagDirectoryUpdateTime);
@@ -45,32 +64,6 @@ export const getDocumentStatus = (
         return DocumentStatus.OUTDATED;
       }
     }
-
-    // 如果有摄入统计信息，进一步判断标注状态
-    if (ingestionStats) {
-      // 简化判断：如果有未标注的chunks，说明需要标注
-      if (ingestionStats.untagged_chunks > 0) {
-        return DocumentStatus.INGESTED_NOT_TAGGED;
-      }
-      
-      // 如果标注完成率很高，认为已标注
-      if (ingestionStats.tagging_completion_rate > 90) {
-        // 检查标注是否过时
-        if (lastTagDirectoryUpdateTime && document.last_ingest_time) {
-          const lastIngestTime = new Date(document.last_ingest_time);
-          const lastUpdateTime = new Date(lastTagDirectoryUpdateTime);
-          if (lastUpdateTime > lastIngestTime) {
-            return DocumentStatus.TAGGING_OUTDATED;
-          }
-        }
-        return DocumentStatus.TAGGED;
-      }
-      
-      // 部分标注的情况，可能需要补充标注
-      return DocumentStatus.INGESTED_NOT_TAGGED;
-    }
-
-    // 没有摄入统计信息时，默认认为是已摄取状态
     return DocumentStatus.INGESTED;
   }
 
@@ -78,14 +71,31 @@ export const getDocumentStatus = (
 };
 
 /**
- * 获取任务进度
+ * 获取处理进度
  */
-export const getJobProgress = (
+export const getProcessProgress = (
   documentId: string,
-  documentJobStatuses: Map<string, DocumentJobStatus>
+  documentProcessStatuses: Map<string, DocumentProcessStatus>
 ): number | undefined => {
-  const jobStatus = documentJobStatuses.get(documentId);
-  return jobStatus?.progress;
+  const processStatus = documentProcessStatuses.get(documentId);
+  if (!processStatus) return undefined;
+
+  // 基于实际的fragment和index数量计算进度
+  const { fragment_count, indexed_fragment_count } = processStatus;
+  
+  // 如果没有fragment，说明文档未解析，进度为0
+  if (fragment_count === 0) {
+    return 0;
+  }
+  
+  // 如果有fragment但没有index，说明正在索引，进度为0
+  if (indexed_fragment_count === 0) {
+    return 0;
+  }
+  
+  // 计算索引进度百分比
+  const progress = (indexed_fragment_count / fragment_count) * 100;
+  return Math.min(Math.round(progress), 100);
 };
 
 /**
