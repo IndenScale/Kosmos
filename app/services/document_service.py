@@ -20,7 +20,9 @@ class DocumentService:
         self.db = db
         # self.doc_repo = DocumentRepository(db)  # 暂时注释，直接使用db操作
         # self.chunk_repo = ChunkRepository(db)  # 摄入相关，暂时注释
-        self.storage_path = Path("data/documents")
+        # 使用绝对路径确保跨平台兼容性
+        project_root = Path(__file__).parent.parent.parent
+        self.storage_path = project_root / "data" / "documents"
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self.milvus_repo = MilvusRepository()
         self.logger = get_logger(__name__)
@@ -65,7 +67,7 @@ class DocumentService:
             with open(file_path, "wb") as f:
                 f.write(content)
 
-        # 返回file:///协议的URL
+        # 返回file:///协议的URL，使用as_posix()确保跨平台兼容性
         absolute_path = file_path.resolve()
         return f"file:///{absolute_path.as_posix()}"
 
@@ -143,7 +145,13 @@ class DocumentService:
             if 'file_url' in locals() and not physical_file:
                 # 从file:///URL提取本地路径并删除文件
                 if file_url.startswith("file:///"):
-                    local_path = file_url[8:]  # 移除file:///前缀
+                    # 使用urlparse正确解析file://协议，确保跨平台兼容性
+                    from urllib.parse import urlparse
+                    parsed = urlparse(file_url)
+                    local_path = parsed.path
+                    # Windows路径处理
+                    if os.name == 'nt' and local_path.startswith('/') and len(local_path) > 1 and local_path[2] == ':':
+                        local_path = local_path[1:]
                     if os.path.exists(local_path):
                         os.remove(local_path)
             raise e
@@ -221,7 +229,13 @@ class DocumentService:
             # 从file:///URL提取本地路径
             file_url = document.physical_file.url
             if file_url.startswith("file:///"):
-                local_path = file_url[8:]  # 移除file:///前缀
+                # 使用urlparse正确解析file://协议，确保跨平台兼容性
+                from urllib.parse import urlparse
+                parsed = urlparse(file_url)
+                local_path = parsed.path
+                # Windows路径处理
+                if os.name == 'nt' and local_path.startswith('/') and len(local_path) > 1 and local_path[2] == ':':
+                    local_path = local_path[1:]
                 if os.path.exists(local_path):
                     return local_path
         return None
@@ -359,7 +373,13 @@ class DocumentService:
 
             # 删除物理文件
             if file_url.startswith("file:///"):
-                local_path = file_url[8:]  # 移除file:///前缀
+                # 使用urlparse正确解析file://协议，确保跨平台兼容性
+                from urllib.parse import urlparse
+                parsed = urlparse(file_url)
+                local_path = parsed.path
+                # Windows路径处理
+                if os.name == 'nt' and local_path.startswith('/') and len(local_path) > 1 and local_path[2] == ':':
+                    local_path = local_path[1:]
                 if os.path.exists(local_path):
                     os.remove(local_path)
                     self.logger.info(f"删除物理文件: {local_path}")

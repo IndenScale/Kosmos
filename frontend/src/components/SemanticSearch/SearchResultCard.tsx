@@ -38,20 +38,7 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
 
   // 用户主动请求查看截图时的处理函数
   const handleViewScreenshots = async () => {
-    // 支持v2.0的related_screenshots或v1.0的screenshot_ids
-    let screenshotIds: string[] = [];
-    
-    if (result.related_screenshots && result.related_screenshots.length > 0) {
-      // v2.0格式：从对象数组中提取ID
-      screenshotIds = result.related_screenshots.map(item => 
-        typeof item === 'string' ? item : item.id || item.screenshot_id || ''
-      ).filter(id => id !== '');
-    } else if (result.screenshot_ids && result.screenshot_ids.length > 0) {
-      // v1.0格式：直接使用字符串数组
-      screenshotIds = result.screenshot_ids;
-    }
-    
-    if (screenshotIds.length === 0) {
+    if (!result.related_screenshots || result.related_screenshots.length === 0) {
       return;
     }
 
@@ -60,9 +47,24 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
       setLoadingScreenshots(true);
       
       try {
-        // 获取截图信息
-        const screenshotInfos = await searchService.getScreenshotsBatch(screenshotIds);
-        const sortedScreenshots = screenshotInfos.sort((a, b) => a.page_number - b.page_number);
+        // 直接使用related_screenshots中的截图信息，不再调用getScreenshotsBatch
+        let screenshotInfos: ScreenshotInfo[] = [];
+        
+        if (result.related_screenshots && result.related_screenshots.length > 0) {
+          // v2.0格式：已经是完整的截图信息对象
+          screenshotInfos = result.related_screenshots.map(item => {
+            if (typeof item === 'object' && item !== null) {
+              return {
+                id: item.id || item.screenshot_id || '',
+                document_id: item.document_id || '',
+                page_number: item.page_number || 0
+              } as ScreenshotInfo;
+            }
+            return null;
+          }).filter(item => item !== null && item.id !== '') as ScreenshotInfo[];
+        }
+        
+        const sortedScreenshots = screenshotInfos.sort((a: ScreenshotInfo, b: ScreenshotInfo) => a.page_number - b.page_number);
         setScreenshots(sortedScreenshots);
 
         // 获取截图图片的blob URLs

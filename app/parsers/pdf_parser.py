@@ -116,8 +116,9 @@ class PdfParser(DocumentParser):
         """为每页创建截图Fragment"""
         fragments = []
 
-        # 确保临时目录存在
-        temp_dir = Path("data/temp/figures")
+        # 确保临时目录存在 - 使用绝对路径
+        project_root = Path(__file__).parent.parent.parent
+        temp_dir = project_root / "data" / "temp" / "figures"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         for page_num in range(len(doc)):
@@ -153,8 +154,9 @@ class PdfParser(DocumentParser):
         figures = []
         figure_counter = 0
 
-        # 确保临时目录存在
-        temp_dir = Path("data/temp/figures")
+        # 确保临时目录存在 - 使用绝对路径
+        project_root = Path(__file__).parent.parent.parent
+        temp_dir = project_root / "data" / "temp" / "figures"
         temp_dir.mkdir(parents=True, exist_ok=True)
         self.logger.info(f"临时目录创建成功: {temp_dir}")
 
@@ -331,8 +333,9 @@ class PdfParser(DocumentParser):
     def _split_text_content(self, text_content: str, start_index: int) -> List[ParsedFragment]:
         """使用Markdown解析器分割文本内容"""
         try:
-            # 确保临时目录存在
-            temp_dir = Path("data/temp/figures")
+            # 确保临时目录存在 - 使用绝对路径
+            project_root = Path(__file__).parent.parent.parent
+            temp_dir = project_root / "data" / "temp" / "figures"
             temp_dir.mkdir(parents=True, exist_ok=True)
 
             # 创建临时Markdown文件

@@ -24,27 +24,17 @@ export const searchService = {
     return response.data;
   },
 
-  // 获取截图信息
-  getScreenshotInfo: async (screenshotId: string): Promise<ScreenshotInfo> => {
-    const response = await apiClient.get(`/screenshots/${screenshotId}/info`);
-    return response.data.data;
-  },
 
-  // 批量获取截图信息
-  getScreenshotsBatch: async (screenshotIds: string[]): Promise<ScreenshotInfo[]> => {
-    const response = await apiClient.post('/screenshots/batch', screenshotIds);
-    return response.data.data.screenshots;
-  },
 
-  // 获取截图图片URL（已废弃，使用getScreenshotImageBlob代替）
+  // 获取截图图片URL
   getScreenshotImageUrl: (screenshotId: string): string => {
-    return `/screenshots/${screenshotId}/image`;
+    return `/api/v1/fragments/${screenshotId}/image`;
   },
 
   // 获取带认证的截图图片blob URL
   getScreenshotImageBlob: async (screenshotId: string): Promise<string> => {
     try {
-      const response = await apiClient.get(`/screenshots/${screenshotId}/image`, {
+      const response = await apiClient.get(`/api/v1/fragments/${screenshotId}/image`, {
         responseType: 'blob',
         headers: {
           'Accept': 'image/png'
@@ -62,11 +52,7 @@ export const searchService = {
     }
   },
 
-  // 获取文档的所有截图
-  getDocumentScreenshots: async (documentId: string): Promise<ScreenshotInfo[]> => {
-    const response = await apiClient.get(`/screenshots/document/${documentId}`);
-    return response.data.data.screenshots;
-  },
+
 
   // 获取fragment图片（截图或插图）
   getFragmentImage: async (fragmentId: string): Promise<string> => {

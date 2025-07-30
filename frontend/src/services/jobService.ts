@@ -97,7 +97,8 @@ export class JobService {
    * 创建文档解析任务
    */
   async createParseJob(kbId: string, request: CreateParseJobRequest): Promise<JobResponse> {
-    const response = await apiClient.post(`/api/v1/kbs/${kbId}/jobs/parse`, request);
+    // 注意：这个端点可能需要后端实现
+    const response = await apiClient.post(`/api/v1/jobs/parse`, { ...request, kb_id: kbId });
     return response.data;
   }
 
@@ -105,7 +106,8 @@ export class JobService {
    * 创建索引任务
    */
   async createIndexJob(kbId: string, request: CreateIndexJobRequest): Promise<JobResponse> {
-    const response = await apiClient.post(`/api/v1/kbs/${kbId}/jobs/index`, request);
+    // 注意：这个端点可能需要后端实现
+    const response = await apiClient.post(`/api/v1/jobs/index`, { ...request, kb_id: kbId });
     return response.data;
   }
 
@@ -122,12 +124,13 @@ export class JobService {
     } = {}
   ): Promise<JobListResponse> {
     const params = new URLSearchParams();
+    params.append('kb_id', kbId); // 添加kb_id参数
     if (options.status) params.append('status', options.status);
     if (options.job_type) params.append('job_type', options.job_type);
     if (options.page) params.append('page', options.page.toString());
     if (options.page_size) params.append('page_size', options.page_size.toString());
 
-    const response = await apiClient.get(`/api/v1/kbs/${kbId}/jobs?${params.toString()}`);
+    const response = await apiClient.get(`/api/v1/jobs/?${params.toString()}`);
     return response.data;
   }
 
@@ -135,7 +138,7 @@ export class JobService {
    * 获取任务详情
    */
   async getJobDetail(kbId: string, jobId: string): Promise<JobDetailResponse> {
-    const response = await apiClient.get(`/api/v1/kbs/${kbId}/jobs/${jobId}`);
+    const response = await apiClient.get(`/api/v1/jobs/${jobId}`);
     return response.data;
   }
 
@@ -143,7 +146,9 @@ export class JobService {
    * 获取任务统计
    */
   async getJobStats(kbId: string): Promise<JobStatsResponse> {
-    const response = await apiClient.get(`/api/v1/kbs/${kbId}/jobs/stats/summary`);
+    const params = new URLSearchParams();
+    params.append('kb_id', kbId);
+    const response = await apiClient.get(`/api/v1/jobs/stats/jobs/?${params.toString()}`);
     return response.data;
   }
 
@@ -151,7 +156,7 @@ export class JobService {
    * 获取队列统计
    */
   async getQueueStats(kbId: string): Promise<QueueStatsResponse> {
-    const response = await apiClient.get(`/api/v1/kbs/${kbId}/jobs/queue/stats`);
+    const response = await apiClient.get(`/api/v1/jobs/stats/queue`);
     return response.data;
   }
 
@@ -159,14 +164,14 @@ export class JobService {
    * 取消任务
    */
   async cancelJob(kbId: string, jobId: string): Promise<void> {
-    await apiClient.post(`/api/v1/kbs/${kbId}/jobs/${jobId}/cancel`);
+    await apiClient.post(`/api/v1/jobs/${jobId}/cancel`);
   }
 
   /**
    * 重试任务
    */
   async retryJob(kbId: string, jobId: string): Promise<void> {
-    await apiClient.post(`/api/v1/kbs/${kbId}/jobs/${jobId}/retry`);
+    await apiClient.post(`/api/v1/jobs/${jobId}/retry`);
   }
 
   /**

@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from app.db.database import Base, create_tables
 from app.routers import auth
 from app.routers import users
@@ -70,6 +72,16 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# 配置静态文件服务
+project_root = Path(__file__).parent.parent
+data_dir = project_root / "data"
+
+# 确保目录存在
+data_dir.mkdir(parents=True, exist_ok=True)
+
+# 挂载整个data目录为静态文件目录
+app.mount("/static/data", StaticFiles(directory=str(data_dir)), name="data")
 
 # 包含路由
 app.include_router(auth.router)

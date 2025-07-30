@@ -286,7 +286,7 @@ class Config(BaseModel):
         return cls(
             logging=LoggingConfig(
                 level=os.getenv("LOG_LEVEL", "INFO"),
-                file_path=os.getenv("LOG_FILE_PATH", "logs/kosmos.log")
+                file_path=os.getenv("LOG_FILE_PATH", str(Path(__file__).parent.parent / "logs" / "kosmos.log"))
             ),
             deduplication=DeduplicationConfig(
                 enabled=os.getenv("DEDUP_ENABLED", "true").lower() == "true",

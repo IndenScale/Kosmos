@@ -30,13 +30,23 @@ def url_to_local_path(url: str) -> str:
     if url.startswith('file://'):
         # 解析file:// URL
         parsed = urlparse(url)
-        # 在Windows上，路径可能是 /C:/path/to/file 格式
         path = parsed.path
+
+        # 在Windows上，路径可能是 /C:/path/to/file 格式
         if os.name == 'nt' and path.startswith('/') and len(path) > 1 and path[2] == ':':
             # Windows路径，去掉开头的斜杠
             path = path[1:]
-        return path
-    return url
+        
+        # 在Linux/Unix上，处理可能的双斜杠问题
+        # file:////home/... 会被解析为 //home/...，需要修正为 /home/...
+        elif path.startswith('//'):
+            path = path[1:]
+
+        # 确保路径规范化，避免双斜杠等问题
+        return os.path.normpath(path)
+
+    # 如果不是file://URL，也进行路径规范化
+    return os.path.normpath(url)
 
 
 class MimeTypeDetector:

@@ -42,7 +42,7 @@ class MilvusRepository:
         fields = [
             FieldSchema(name="chunk_id", dtype=DataType.VARCHAR, max_length=64, is_primary=True),
             FieldSchema(name="document_id", dtype=DataType.VARCHAR, max_length=64),
-            FieldSchema(name="tags", dtype=DataType.ARRAY, element_type=DataType.VARCHAR, max_capacity=100, max_length=50),
+            FieldSchema(name="tags", dtype=DataType.ARRAY, element_type=DataType.VARCHAR, max_capacity=100, max_length=500),
             FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=self.embedding_dim)  # 使用环境变量
         ]
 
