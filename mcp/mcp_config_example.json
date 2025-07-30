@@ -2,7 +2,7 @@
   "mcpServers": {
     "kosmos-knowledge-base": {
       "command": "python",
-      "args": ["./Kosmos/mcp/server.py"],
+      "args": ["run_server.py"],
       "env": {
         "KOSMOS_BASE_URL": "http://127.0.0.1:8000",
         "KOSMOS_USERNAME": "songdifei",

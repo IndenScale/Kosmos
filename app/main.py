@@ -49,14 +49,16 @@ app = FastAPI(
 )
 
 # 从环境变量获取前端URL
-WEBUI_URL = os.getenv("WEBUI_URL", "http://localhost:3000")
+kosmos_webui_host = os.getenv("KOSMOS_WEBUI_HOST", "localhost")
+kosmos_webui_port = os.getenv("KOSMOS_WEBUI_PORT", "3000")
+kosmos_webui_url = "http://" + kosmos_webui_host + ":" + kosmos_webui_port
 
 # 配置允许的源
 allowed_origins = [
-    WEBUI_URL,
+    kosmos_webui_url,
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://10.19.8.199:3000",  # 如果前端部署在这个IP
+    "http://10.19.8.199:3020",  # 如果前端部署在这个IP
 ]
 
 # 添加CORS中间件
@@ -81,9 +83,6 @@ app.include_router(parser.router)
 app.include_router(index.router)
 app.include_router(search.router)
 app.include_router(jobs.router)
-# app.include_router(ingestion.router)
-# app.include_router(sdtm.router)
-# app.include_router(tagging.router)
 
 @app.get("/")
 def read_root():

@@ -109,19 +109,53 @@ class KBService:
 
     def delete_kb(self, kb_id: str) -> bool:
         """删除知识库"""
+        from app.models.fragment import KBFragment
+        from app.models.document import KBDocument
+        from app.models.index import Index
+        from app.models.job import Job, Task
+        from app.models.credential import KBModelConfig
+        
         kb = self.get_kb_by_id(kb_id)
         if not kb:
             return False
 
-        # 删除Milvus Collection
-        if kb.milvus_collection_id:
-            self.milvus_repo.delete_collection(kb_id)
+        try:
+            # 1. 删除Milvus Collection
+            if kb.milvus_collection_id:
+                self.milvus_repo.delete_collection(kb_id)
 
-        # 删除SQLite记录
-        self.db.delete(kb)
-        self.db.commit()
+            # 2. 删除知识库相关的所有外键引用
+            # 首先获取所有相关的job_ids
+            job_ids = [job.id for job in self.db.query(Job).filter(Job.kb_id == kb_id).all()]
+            
+            # 删除tasks（必须在删除jobs之前）
+            if job_ids:
+                self.db.query(Task).filter(Task.job_id.in_(job_ids)).delete(synchronize_session=False)
+            
+            # 删除任务记录
+            self.db.query(Job).filter(Job.kb_id == kb_id).delete()
+            
+            # 删除 kb_fragments 关联
+            self.db.query(KBFragment).filter(KBFragment.kb_id == kb_id).delete()
+            
+            # 删除 kb_documents 关联
+            self.db.query(KBDocument).filter(KBDocument.kb_id == kb_id).delete()
+            
+            # 删除索引记录
+            self.db.query(Index).filter(Index.kb_id == kb_id).delete()
+            
+            # 删除知识库模型配置
+            self.db.query(KBModelConfig).filter(KBModelConfig.kb_id == kb_id).delete()
 
-        return True
+            # 3. 删除知识库记录（成员关联会通过cascade自动删除）
+            self.db.delete(kb)
+            self.db.commit()
+
+            return True
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"删除知识库失败: kb_id={kb_id}, 错误: {e}")
+            raise e
 
     def get_kb_members(self, kb_id: str) -> List[KBMember]:
         """获取知识库成员列表"""

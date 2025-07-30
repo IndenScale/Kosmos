@@ -195,6 +195,39 @@ class FragmentService:
             last_updated=datetime.now()
         )
 
+    def get_fragment(self, fragment_id: str) -> Optional[FragmentResponse]:
+        """获取Fragment详情"""
+        fragment = self.get_fragment_by_id(fragment_id)
+        if not fragment:
+            return None
+        return FragmentResponse.model_validate(fragment)
+
+    def delete_fragment(self, fragment_id: str) -> bool:
+        """删除单个Fragment"""
+        try:
+            fragment = self.get_fragment_by_id(fragment_id)
+            if not fragment:
+                return False
+
+            # 先删除KB关联
+            self.db.query(KBFragment).filter(
+                KBFragment.fragment_id == fragment_id
+            ).delete(synchronize_session=False)
+
+            # 删除Fragment
+            self.db.query(Fragment).filter(
+                Fragment.id == fragment_id
+            ).delete(synchronize_session=False)
+
+            self.db.commit()
+            logger.info(f"删除Fragment {fragment_id}")
+            return True
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"删除Fragment失败: {str(e)}")
+            return False
+
     def delete_document_fragments(self, document_id: str) -> bool:
         """删除文档的所有Fragment（内部使用）"""
         try:

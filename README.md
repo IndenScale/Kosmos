@@ -1,98 +1,127 @@
-# Kosmos：知识即服务与智能体赋能平台
+# Kosmos Knowledge Base System - README
 
-Kosmos 是一个开源的、面向未来的智能知识平台。它不仅是一个被动的文档存储库，更是一个主动的**知识即服务 (Knowledge-as-a-Service)** 与 **Agent 赋能 (Agent-Enablement)** 系统。Kosmos 旨在将海量的、非结构化的领域数据，转化为可被大型语言模型（LLM）Agent 理解、调用和推理的结构化知识，从而驱动复杂任务的自动化。
+Welcome to Kosmos, a pluggable semantic knowledge base system designed for modern enterprises and teams. Kosmos helps you build, manage, and leverage large-scale, multi-modal memory, transforming unstructured data into actionable intelligence.
+
+## Core Value
+
+- **Semantic Understanding**: Goes beyond keyword search. Kosmos understands the deep meaning of your data to provide more accurate and intelligent search results.
+- **Multi-modal**: Seamlessly processes and indexes various data types, including text documents, images, and code snippets, creating a unified knowledge view.
+- **Pluggable Architecture**: A flexible, modular design allows you to easily integrate different model services (e.g., Embedding, Reranking, LLM) to adapt to evolving technological needs.
+- **Enterprise-Ready**: Provides comprehensive user permission management, multi-tenant knowledge bases, and asynchronous task processing to meet the stability and security requirements of enterprise applications.
+
+## Core Concepts
+
+The Kosmos knowledge system is built upon four core abstractions that progressively structure raw data into retrievable knowledge.
+
+1.  **Knowledge Base (KB)**
+    - **Definition**: The highest-level container, representing an independent knowledge domain or project space. Each KB has its own members, permission settings, model configurations, and tag system.
+    - **Features**:
+        - **Multi-tenancy**: Data and configurations are isolated between different knowledge bases.
+        - **Configurability**: Each KB can be independently configured with its own AI models for Embedding, Reranking, LLM, etc.
+        - **Tag Dictionary**: A hierarchical tag dictionary can be defined for precise content classification and filtering.
+
+2.  **Document**
+    - **Definition**: The raw material uploaded by users into a knowledge base, serving as the direct source of knowledge. Kosmos distinguishes between **Logical Documents** and **Physical Documents**.
+    - **Logical Document**: A record of a user's upload action, containing metadata like filename and type.
+    - **Physical Document**: The actual stored file. The system uses content hashing (SHA256) for deduplication, allowing multiple logical documents to point to a single physical file, thus saving storage space.
+
+3.  **Fragment**
+    - **Definition**: The smallest unit of knowledge, produced by intelligently parsing a document. It is the fundamental unit for system understanding, indexing, and retrieval.
+    - **Types**:
+        - **Text**: Paragraphs, sentences, or code blocks extracted from a document.
+        - **Screenshot**: Page captures from a document.
+        - **Figure**: Identified charts, tables, flowcharts, etc.
+    - **Features**: Each fragment retains its positional information (e.g., page number) from the original document, enabling context traceability.
+
+4.  **Index**
+    - **Definition**: A retrievable record created by deeply processing a **Text Fragment**. It is the core of semantic search.
+    - **Components**:
+        - **Embedding**: A mathematical representation of the fragment's content, used for calculating semantic similarity.
+        - **Tags**: Keywords or categories automatically generated for the fragment based on the KB's tag system and LLM understanding.
+        - **Metadata**: Other information used for retrieval and filtering.
+    - **Storage**: Index data is stored in a relational database (PostgreSQL), while embeddings are stored in a specialized vector database (e.g., Milvus) for efficient similarity search.
+
+## System Architecture
+
+Kosmos employs a classic three-tier architecture, ensuring high cohesion, low coupling, and ease of maintenance and extension.
+
+- **Router Layer**: Located in `app/routers`. Receives external HTTP requests, validates parameters, and calls the appropriate service to handle them. It defines the system's API.
+- **Service Layer**: Located in `app/services`. Contains the core business logic. It orchestrates data models and external services (like AI models) to perform specific business functions.
+- **Model Layer**: Located in `app/models`. Defines the system's data structures and database table mappings (using SQLAlchemy ORM), forming the system's backbone.
+
+**Data and Task Flow**:
+
+1.  **Asynchronous Task Processing**: For time-consuming operations like document parsing and batch indexing, Kosmos uses an `asyncio`-based task queue (`UnifiedJobService`). Requests receive an immediate response while tasks run in the background. Users can query task status via the `jobs` API.
+2.  **AI Model Integration**: The system manages access to external AI models through `CredentialService` and `KBModelConfig`. This makes it easy to swap or upgrade models by simply changing the configuration without altering core code.
+
+## Key Features
+
+- **User & Auth Management** (`auth`, `users`):
+    - User registration, login, logout.
+    - JWT-based authentication with refresh tokens.
+    - Role-based access control (user, admin, system_admin).
+
+- **Knowledge Base Management** (`knowledge_bases`):
+    - Create, update, and delete knowledge bases.
+    - Manage KB members and their roles (owner, admin, member).
+    - Configure AI models and the tag dictionary for each KB.
+
+- **Credential Management** (`credentials`):
+    - Securely store and manage API keys and other credentials for AI models (with encryption).
+    - Supports various model types (Embedding, Reranker, LLM, VLM).
+
+- **Document Management** (`documents`):
+    - Upload, download, and delete documents.
+    - Batch operations for documents.
+    - View the parsing and indexing status of documents.
+
+- **Content Parsing** (`parser`):
+    - Asynchronously parse uploaded documents to generate various fragment types.
+    - Supports forced re-parsing.
+    - Provides status queries for document parsing.
+
+- **Index Management** (`index`):
+    - Asynchronously create vector indexes and tags for text fragments.
+    - Supports indexing tasks for single fragments, single documents, or batches of documents.
+    - Provides indexing statistics for knowledge bases.
+
+- **Semantic Search** (`search`):
+    - **Hybrid Search**: Combines vector similarity with tag filtering for precise results.
+    - **Advanced Query Syntax**: Supports `+tag` (must include), `-tag` (must not include), and `~tag` (preferred) syntax directly in the search box.
+    - **Context-Aware**: Search results can be linked with related screenshots and figures for richer context.
+
+- **Job Management** (`jobs`):
+    - A unified interface to query and manage all background asynchronous tasks.
+    - View task details, progress, and execution results.
+
+## Quick Start
+
+1.  **Run Dependency Services (Recommended)**
+    This project relies on PostgreSQL and Milvus. We provide a `docker-compose.yml` file to launch both services with a single command.
+    ```bash
+    # This will start PostgreSQL and Milvus containers in the background
+    docker-compose up -d
+    ```
+
+2.  **Configure Environment Variables**
+    Copy the environment variable template and modify it as needed (especially the security keys).
+    ```bash
+    cp .env.example .env
+    ```
+    **Important**: Be sure to generate new, strong random values for `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`, and `CREDENTIAL_ENCRYPTION_KEY` in your `.env` file.
+
+3.  **Install Python Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Launch the Backend Application**
+    ```bash
+    uvicorn app.main:app --reload
+    ```
+    Once the service is running, you can access the API documentation at `http://127.0.0.1:8000/docs`.
+
+For more detailed deployment options and explanations of the environment variables, please refer to the [Deployment Guide (Chinese)](./部署指南.md).
 
 ---
-
-## 核心理念
-
-Kosmos 的设计哲学根植于两大核心理念：
-
-1.  **知识的结构化与治理**: 我们认为，知识的价值不仅在于存储，更在于其内在的结构和质量。Kosmos 通过其核心的 **SDTM（知识治理）引擎**，利用 LLM 自动优化知识库的标签体系（知识本体），持续提升知识的区分度和可检索性。
-2.  **赋能自主 Agent**: Kosmos 被设计为自主 Agent 的“外部知识大脑”。通过提供稳定、精准、���下文感知的语义搜索 API，它极大地降低了通用 Agent 执行深度专业领域任务的门槛，使其能够专注于“思考”和“推理”，而非“阅读”和“记忆”。
-
-## 架构概览
-
-```mermaid
-graph TD
-    subgraph "用户 / Agent"
-        A[用户浏览器]
-        B[自主 Agent / MCP]
-    end
-
-    subgraph "Kosmos 平台"
-        C[前端 (React)]
-        D[后端 (FastAPI)]
-    end
-
-    subgraph "核心服务"
-        E[知识库服务]
-        F[文档摄入服务]
-        G[语义搜索服务]
-        H[知识治理服务 (SDTM)]
-    end
-
-    subgraph "数据与智能层"
-        I[关系型数据库 (Postgres/SQLite)]
-        J[向量数据库 (Milvus)]
-        K[异步任务队列]
-        L[LLM / VLM / Embedding Models]
-    end
-
-    A -- HTTP/S --> C
-    C -- REST API --> D
-    B -- REST API --> D
-
-    D -- 调用 --> E
-    D -- 调用 --> F
-    D -- 调用 --> G
-    D -- 调用 --> H
-
-    F -- 异步任务 --> K
-    K -- 执行 --> F
-
-    E -- 读/写 --> I
-    E -- 读/写 --> J
-    F -- 读/写 --> I
-    F -- 读/写 --> J
-    G -- 读/写 --> I
-    G -- 读/写 --> J
-    H -- 读/写 --> I
-    H -- 读/写 --> J
-
-    H -- 调用 --> L
-```
-
-## 核心特性
-
--   **🤖 自动知识治理 (SDTM Engine)**: Kosmos 的核心创���。它不再是传统的主题模型，而是一个由 LLM 驱动的知识库健康度优化引擎。它通过智能采样和推理，自动迭代优化知识库的层级式**标签字典**，诊断并修复标注不足、无法区分等问题。
-
--   **🧠 多模态语义搜索**: 基于“召回-精排-去重”管线，提供精准的语义搜索。不仅支持文本，更能通过 VLM 理解 PDF、PPTX 等文档中的**图片内容**，实现真正的多模态检索。
-
--   **✨ 知识溯源与关联**: 在文档摄入时，系统会自动为 PDF 等格式的文档生成**页面截图**。搜索结果中的每个知识块（Chunk）都会智能关联其来源的页面截图，提供一键“回到原文”的视觉溯源能力。
-
--   **⚡️ 异步摄入与内容寻址存储**:
-    -   所有耗时的文档处理任务均通过**异步任务队列**在后台执行，保证了系统的高响应性。
-    -   采用**内容寻址存储**策略，基于文件内容的哈希值进行存储，从根本上杜绝了物理文件的冗余，极大地节省了存储空间。
-
--   **🧩 Agent 框架集成**: 通过 **MCP (Master Control Program)** 模式，Kosmos 可以无缝地作为外部知识源，赋能 Gemini CLI 等通用自主 Agent 完成需要深度领域知识的复杂任务（如自动化安全评估）。
-
--   **🔧 现代技术栈**: 前端采用 **React/TypeScript**，后端采用 **Python/FastAPI**，数据库采用 **PostgreSQL/SQLite** + **Milvus**，确保了系统的高性能、高可靠性和易于二次开发。
-
-## Kosmos 为谁而生？
-
--   **AI 研究人员与工程师**: 探索和构建先进的 RAG (Retrieval-Augmented Generation)、知识图谱构建和 Agentic AI 应用。
--   **企业与专业团队**: 打造高信噪比、高时效性的内部知识库，沉淀专业知识，并赋能内部的智能客服、智能助手等应用。
--   **开发者**: 作为一个强大的“知识中台”，通过其丰富的 API 为上层应用提供知识管理和智能检索的核心能力。
-
-## 快速开始
-
-想要亲自体验 Kosmos 的强大功能吗？请参考我们的 **[部署指南](./部署指南.md)**，只需几个简单的步骤，即可在本地或服务器上运行您自己的 Kosmos 实例。
-
-## 贡献
-
-Kosmos 是一个开源项目，我们欢迎来自社区的任何��献。无论是代码实现、功能建议，还是文档改进，都对我们至关重要。
-
----
-
-**Kosmos: 连接知识，点亮智慧。**
+*This documentation was generated with the assistance of Gemini CLI.*
