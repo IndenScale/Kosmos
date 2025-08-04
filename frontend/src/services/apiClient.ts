@@ -5,8 +5,14 @@ import { API_BASE_URL } from './config';
 // 创建axios实例
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // 增加超时时间到30秒
   withCredentials: true, // 添加这行以支持跨域凭证
+  // 如果环境中设置了代理，axios会自动使用
+  proxy: process.env.http_proxy ? {
+    protocol: 'http',
+    host: 'localhost',
+    port: 7890
+  } : false,
 });
 
 // 请求拦截器 - 添加认证token

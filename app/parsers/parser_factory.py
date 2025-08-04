@@ -14,6 +14,7 @@ from app.parsers.parser_utils import MimeTypeDetector, FileTypeClassifier, url_t
 from app.parsers.text_parsers import PlainTextParser, MarkdownParser, CodeParser
 from app.parsers.image_parsers import PngImageParser, GenericImageParser
 from app.parsers.pdf_parser import PdfParser
+
 from app.parsers.office_parsers import DocxParser, XlsxParser, PptxParser
 
 

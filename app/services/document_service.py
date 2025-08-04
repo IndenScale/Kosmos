@@ -69,7 +69,12 @@ class DocumentService:
 
         # 返回file:///协议的URL，使用as_posix()确保跨平台兼容性
         absolute_path = file_path.resolve()
-        return f"file:///{absolute_path.as_posix()}"
+        posix_path = absolute_path.as_posix()
+        # 确保路径以单个斜杠开头，避免file:////的问题
+        if posix_path.startswith('/'):
+            return f"file://{posix_path}"
+        else:
+            return f"file:///{posix_path}"
 
     def upload_document(self, kb_id: str, user_id: str, uploaded_file: UploadFile) -> Document:
         """上传文档到知识库"""

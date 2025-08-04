@@ -67,7 +67,7 @@ class UnifiedJobService:
                     await self.task_queue.add_task(
                         self._execute_parse_task,
                         task.id,
-                        timeout=300
+                        timeout=3600
                     )
                 elif task.task_type == TaskType.INDEX_FRAGMENT.value:
                     await self.task_queue.add_task(
@@ -79,7 +79,7 @@ class UnifiedJobService:
                     await self.task_queue.add_task(
                         self._execute_parse_and_index_task,
                         task.id,
-                        timeout=600  # 解析+索引需要更长时间
+                        timeout=3600  # 解析+索引需要更长时间
                     )
                 else:
                     logger.warning(f"未知任务类型: {task.task_type}")

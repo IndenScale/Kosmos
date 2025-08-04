@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class FragmentService:
     """Fragment服务类"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db):
         self.db = db
 
     def get_fragment_by_id(self, fragment_id: str) -> Optional[Fragment]:
@@ -251,3 +251,26 @@ class FragmentService:
             self.db.rollback()
             logger.error(f"删除文档Fragment失败: {str(e)}")
             return False
+
+    def get_fragment_with_document_info(self, fragment_id: str) -> Optional[Dict[str, Any]]:
+        """获取Fragment及其关联的文档信息"""
+        fragment = self.db.query(Fragment).options(
+            joinedload(Fragment.document)
+        ).filter(Fragment.id == fragment_id).first()
+
+        if not fragment:
+            return None
+
+        # 解析meta_info
+        meta_info = {}
+        if fragment.meta_info:
+            try:
+                meta_info = json.loads(fragment.meta_info) if isinstance(fragment.meta_info, str) else fragment.meta_info
+            except (json.JSONDecodeError, TypeError):
+                meta_info = {}
+
+        return {
+            "fragment": fragment,
+            "document": fragment.document,
+            "meta_info": meta_info
+        }

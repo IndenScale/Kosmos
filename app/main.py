@@ -60,6 +60,8 @@ allowed_origins = [
     kosmos_webui_url,
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3020",  # 本地开发
+    "http://127.0.0.1:3020",  # 本地开发
     "http://10.19.8.199:3020",  # 如果前端部署在这个IP
 ]
 

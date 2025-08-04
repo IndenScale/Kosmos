@@ -63,12 +63,14 @@ class Deduplicator:
             return results
 
         # 按相似度分数降序排序，确保保留最相关的结果
-        sorted_results = sorted(results, key=lambda x: x.get('score', 0), reverse=True)
+        # 优先使用booster_score，然后是rerank_score，最后是原始score
+        sorted_results = sorted(results, key=lambda x: x.get('booster_score', x.get('rerank_score', x.get('score', 0))), reverse=True)
 
         deduplicated = []
 
         for current_result in sorted_results:
-            current_score = current_result.get('score', 0)
+            # 优先使用booster_score，然后是rerank_score，最后是原始score
+            current_score = current_result.get('booster_score', current_result.get('rerank_score', current_result.get('score', 0)))
             current_content = current_result.get('content', '').strip()
 
             # 跳过过短的内容
@@ -80,7 +82,8 @@ class Deduplicator:
             is_duplicate = False
 
             for existing_result in deduplicated:
-                existing_score = existing_result.get('score', 0)
+                # 优先使用booster_score，然后是rerank_score，最后是原始score
+                existing_score = existing_result.get('booster_score', existing_result.get('rerank_score', existing_result.get('score', 0)))
                 existing_content = existing_result.get('content', '').strip()
 
                 if len(existing_content) < self.config.min_content_length:

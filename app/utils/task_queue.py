@@ -20,7 +20,7 @@ class Task:
     func: Callable
     args: tuple
     kwargs: dict
-    timeout: int = 300
+    timeout: int = 3600
     status: TaskStatus = TaskStatus.PENDING
     result: Any = None
     error: Optional[str] = None
@@ -119,7 +119,7 @@ class AsyncTaskQueue:
         print("任务队列worker开始运行")
         last_queue_full_log_time = 0
         queue_full_log_interval = 10  # 队列满时每10秒打印一次日志
-        
+
         while self._running:
             try:
                 # 检查是否可以处理新任务
@@ -129,7 +129,7 @@ class AsyncTaskQueue:
                     if current_time - last_queue_full_log_time >= queue_full_log_interval:
                         print(f"达到最大并发任务数 {self.max_concurrent_tasks}，等待中... (队列大小: {self.pending_queue.qsize()})")
                         last_queue_full_log_time = current_time
-                    
+
                     # 增加等待时间，减少轮询频率
                     await asyncio.sleep(2.0)  # 从0.1秒增加到2秒
                     continue
@@ -157,7 +157,7 @@ class AsyncTaskQueue:
             except Exception as e:
                 print(f"队列工作器错误: {e}")
                 await asyncio.sleep(1)
-        
+
         print("任务队列worker停止运行")
 
     async def _execute_task(self, task: Task):

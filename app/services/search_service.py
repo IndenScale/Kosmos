@@ -99,7 +99,7 @@ class SearchService:
                 fragment_types_str = [FragmentType.TEXT.value]
             else:
                 fragment_types_str = [ft.value for ft in fragment_types]
-            
+
             if must_tags is None:
                 must_tags = []
             if must_not_tags is None:
@@ -153,9 +153,25 @@ class SearchService:
             # 5. 重排序（如果有偏好标签）
             if like_tags:
                 detailed_results = self.reranker.rerank(detailed_results, like_tags)
+                # 调试：输出重排序后的前3个结果的分数
+                logger.info(f"重排序后前3个结果的分数:")
+                for i, result in enumerate(detailed_results[:3]):
+                    booster_score = result.get('booster_score')
+                    rerank_score = result.get('rerank_score')
+                    original_score = result.get('score')
+                    logger.info(f"  结果{i+1}: booster_score={booster_score}, rerank_score={rerank_score}, original_score={original_score}")
 
             # 6. 去重处理
             deduplicated_results = self.deduplicator.deduplicate_results(detailed_results)
+
+            # 调试：输出去重后的前3个结果的分数
+            if like_tags:
+                logger.info(f"去重后前3个结果的分数:")
+                for i, result in enumerate(deduplicated_results[:3]):
+                    booster_score = result.get('booster_score')
+                    rerank_score = result.get('rerank_score')
+                    original_score = result.get('score')
+                    logger.info(f"  结果{i+1}: booster_score={booster_score}, rerank_score={rerank_score}, original_score={original_score}")
 
             # 7. 截取最终结果
             final_results = deduplicated_results[:top_k]
@@ -170,31 +186,39 @@ class SearchService:
             # 9. 构建最终结果，根据参数决定是否包含相关视觉内容
             final_search_results = []
             for result in final_results:
-                # 基础结果
+                # 基础结果，优先使用booster_score，然后是rerank_score，最后是原始score
+                final_score = result.get("booster_score",
+                                result.get("rerank_score",
+                                result.get("score", 0.0)))
+
                 search_result = {
                     "fragment_id": result["fragment_id"],
                     "document_id": result["document_id"],
                     "fragment_type": result["fragment_type"],
                     "content": result["content"],
                     "tags": result["tags"],
-                    "score": result["score"],
+                    "score": final_score,
                     "meta_info": result["meta_info"],
-                    "source_file_name": result.get("source_file_name")
+                    "source_file_name": result.get("source_file_name"),
+                    "figure_name": None,
+                    "related_screenshots": [],
+                    "related_figures": []
                 }
-                
+
                 # 如果需要包含视觉内容，添加相关的截图和插图
                 if include_screenshots or include_figures:
                     meta_info = result.get("meta_info", {})
                     page_start = meta_info.get("page_start")
                     page_end = meta_info.get("page_end")
-                    
+
                     if page_start is not None and page_end is not None:
                         search_result["page_range"] = {
                             "start": page_start,
                             "end": page_end
                         }
-                        
+
                         # 获取相关的视觉Fragment
+                        logger.info(f"为Fragment {result['fragment_id']} 获取相关视觉内容，页面范围: {page_start}-{page_end}")
                         visual_fragments = self._get_related_visual_fragments(
                             kb_id=kb_id,
                             document_id=result["document_id"],
@@ -203,12 +227,14 @@ class SearchService:
                             include_screenshots=include_screenshots,
                             include_figures=include_figures
                         )
-                        
+
                         search_result["related_screenshots"] = visual_fragments["screenshots"]
                         search_result["related_figures"] = visual_fragments["figures"]
-                
+
+                        logger.info(f"找到 {len(visual_fragments['screenshots'])} 个相关截图，{len(visual_fragments['figures'])} 个相关插图")
+
                 final_search_results.append(search_result)
-            
+
             # 返回统一格式的结果
             result = {
                 "results": final_search_results,
@@ -348,7 +374,7 @@ class SearchService:
             detailed_results = []
             # 缓存文档文件名，避免重复查询
             document_filename_cache = {}
-            
+
             for milvus_result in milvus_results:
                 fragment_id = milvus_result.get("chunk_id")
                 if fragment_id in fragment_map:
@@ -362,13 +388,16 @@ class SearchService:
                         document_filename_cache[document_id] = self._get_source_file_name(document_id)
                     source_file_name = document_filename_cache[document_id]
 
+                    # 在这个阶段只使用原始的milvus score，booster_score会在重排序阶段添加
+                    final_score = milvus_result.get("score", 0.0)
+
                     detailed_results.append({
                         "fragment_id": fragment.id,
                         "document_id": fragment.document_id,
                         "fragment_type": fragment.fragment_type,
                         "content": index.content,
                         "tags": index.tags_list,
-                        "score": milvus_result.get("rerank_score", milvus_result.get("score", 0.0)),
+                        "score": final_score,
                         "meta_info": fragment.meta_info,
                         "source_file_name": source_file_name
                     })
@@ -379,13 +408,13 @@ class SearchService:
             logger.error(f"获取Fragment详细信息失败: {str(e)}")
             return []
 
-    def _get_related_visual_fragments(self, kb_id: str, document_id: str, 
+    def _get_related_visual_fragments(self, kb_id: str, document_id: str,
                                      page_start: int, page_end: int,
                                      include_screenshots: bool = False,
                                      include_figures: bool = False) -> Dict[str, List[Dict[str, Any]]]:
         """
         根据页面范围获取相关的截图和插图
-        
+
         Args:
             kb_id: 知识库ID
             document_id: 文档ID
@@ -393,7 +422,7 @@ class SearchService:
             page_end: 结束页面
             include_screenshots: 是否包含截图
             include_figures: 是否包含插图
-            
+
         Returns:
             包含screenshots和figures列表的字典
         """
@@ -401,10 +430,10 @@ class SearchService:
             "screenshots": [],
             "figures": []
         }
-        
+
         if not (include_screenshots or include_figures):
             return result
-            
+
         try:
             # 构建查询条件
             fragment_types = []
@@ -412,14 +441,14 @@ class SearchService:
                 fragment_types.append("screenshot")
             if include_figures:
                 fragment_types.append("figure")
-                
+
             if not fragment_types:
                 return result
-            
+
             # 直接查询Fragment表，不依赖Index表
             # 因为视觉Fragment（如figure）可能没有对应的Index记录
             from app.models.fragment import KBFragment
-            
+
             query = self.db.query(Fragment).join(
                 KBFragment, Fragment.id == KBFragment.fragment_id
             ).filter(
@@ -429,21 +458,29 @@ class SearchService:
                     Fragment.fragment_type.in_(fragment_types)
                 )
             )
-            
+
             visual_fragments = query.all()
-            
-            logger.info(f"找到 {len(visual_fragments)} 个视觉Fragment，类型: {fragment_types}")
-            
+
+            logger.info(f"查询视觉Fragment - 文档ID: {document_id}, 知识库ID: {kb_id}, 类型: {fragment_types}")
+            logger.info(f"目标页面范围: {page_start}-{page_end}")
+            logger.info(f"找到 {len(visual_fragments)} 个视觉Fragment")
+
             # 获取文档的原始文件名
             source_file_name = self._get_source_file_name(document_id)
-            
+
             for fragment in visual_fragments:
                 # 检查页面范围是否重叠
+                fragment_page_start = fragment.meta_info.get("page_start") if fragment.meta_info else None
+                fragment_page_end = fragment.meta_info.get("page_end") if fragment.meta_info else None
+
+                # logger.info(f"检查Fragment {fragment.id} ({fragment.fragment_type}) - 页面范围: {fragment_page_start}-{fragment_page_end}")
+
                 if self._is_page_range_overlapping(fragment.meta_info, page_start, page_end):
+                    logger.info(f"Fragment {fragment.id} 页面范围重叠，将添加到结果中")
                     # 尝试从Index表获取内容，如果没有则使用raw_content
                     content = ""
                     tags = []
-                    
+
                     # 尝试获取Index中的内容
                     index_record = self.db.query(Index).filter(
                         and_(
@@ -451,7 +488,7 @@ class SearchService:
                             Index.kb_id == kb_id
                         )
                     ).first()
-                    
+
                     if index_record:
                         content = index_record.content or ""
                         tags = index_record.tags_list or []
@@ -461,16 +498,16 @@ class SearchService:
                         # 从meta_info中提取标签
                         if fragment.meta_info:
                             tags = fragment.meta_info.get("tags", [])
-                    
+
                     # 获取Fragment在同类型中的索引位置
                     fragment_index_by_type = self._get_fragment_index_by_type(
                         document_id, fragment.fragment_type, fragment.id
                     )
-                    
+
                     # 从meta_info获取页面信息
                     fragment_page_start = fragment.meta_info.get("page_start", 1) if fragment.meta_info else 1
                     fragment_page_end = fragment.meta_info.get("page_end", 1) if fragment.meta_info else 1
-                    
+
                     # 生成可读的片段名称
                     figure_name = self._generate_figure_name(
                         source_file_name or "unknown",
@@ -479,7 +516,7 @@ class SearchService:
                         fragment_page_start,
                         fragment_page_end
                     )
-                    
+
                     fragment_data = {
                         "fragment_id": fragment.id,
                         "document_id": fragment.document_id,
@@ -491,25 +528,25 @@ class SearchService:
                         "source_file_name": source_file_name,
                         "figure_name": figure_name
                     }
-                    
+
                     if fragment.fragment_type == "screenshot":
                         result["screenshots"].append(fragment_data)
                     elif fragment.fragment_type == "figure":
                         result["figures"].append(fragment_data)
-                        
+
                     logger.info(f"添加视觉Fragment: {fragment.fragment_type}, ID: {fragment.id}, 名称: {figure_name}")
-                        
+
         except Exception as e:
             logger.error(f"获取相关视觉Fragment失败: {str(e)}")
-            
+
         logger.info(f"最终返回: {len(result['screenshots'])} 个截图, {len(result['figures'])} 个插图")
         return result
-    
+
     def _get_source_file_name(self, document_id: str) -> Optional[str]:
         """获取文档的原始文件名"""
         try:
             from app.models.document import Document
-            
+
             document = self.db.query(Document).filter(Document.id == document_id).first()
             if document:
                 return document.filename
@@ -518,7 +555,7 @@ class SearchService:
             logger.error(f"获取文件名失败: {str(e)}")
             return None
 
-    def _generate_figure_name(self, source_file_name: str, fragment_type: str, 
+    def _generate_figure_name(self, source_file_name: str, fragment_type: str,
                              fragment_index: int, page_start: int, page_end: int) -> str:
         """
         生成可读的片段名称
@@ -530,19 +567,19 @@ class SearchService:
                 base_name = source_file_name.rsplit('.', 1)[0]
             else:
                 base_name = source_file_name or "unknown"
-            
+
             # 构建片段名称
             if page_start == page_end:
                 page_part = f"page_{page_start}"
             else:
                 page_part = f"page_{page_start}-{page_end}"
-            
+
             return f"{base_name}_{fragment_type}_{fragment_index}_{page_part}"
         except Exception as e:
             logger.error(f"生成片段名称失败: {str(e)}")
             return f"{fragment_type}_{fragment_index}"
 
-    def _get_fragment_index_by_type(self, document_id: str, fragment_type: str, 
+    def _get_fragment_index_by_type(self, document_id: str, fragment_type: str,
                                    target_fragment_id: str) -> int:
         """获取同类型Fragment中的索引位置"""
         try:
@@ -553,39 +590,39 @@ class SearchService:
                     Fragment.fragment_type == fragment_type
                 )
             ).order_by(Fragment.fragment_index).all()
-            
+
             # 找到目标Fragment在同类型中的位置
             for i, fragment in enumerate(fragments, 1):
                 if fragment.id == target_fragment_id:
                     return i
-            
+
             return 1  # 默认返回1
         except Exception as e:
             logger.error(f"获取Fragment类型索引失败: {str(e)}")
             return 1
 
-    def _is_page_range_overlapping(self, meta_info: Dict[str, Any], 
+    def _is_page_range_overlapping(self, meta_info: Dict[str, Any],
                                   target_start: int, target_end: int) -> bool:
         """
         检查Fragment的页面范围是否与目标页面范围重叠
-        
+
         Args:
             meta_info: Fragment的元信息
             target_start: 目标起始页面
             target_end: 目标结束页面
-            
+
         Returns:
             是否重叠
         """
         if not meta_info:
             return False
-            
+
         fragment_start = meta_info.get("page_start")
         fragment_end = meta_info.get("page_end")
-        
+
         if fragment_start is None or fragment_end is None:
             return False
-            
+
         # 检查页面范围是否重叠
         # 重叠条件：fragment_start <= target_end and fragment_end >= target_start
         return fragment_start <= target_end and fragment_end >= target_start

@@ -13,6 +13,9 @@ import base64
 import json
 import logging
 import re
+import asyncio
+import aiofiles
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Tuple, Dict, Any, List
 from pathlib import Path
 from urllib.parse import urlparse
@@ -36,9 +39,10 @@ def url_to_local_path(url: str) -> str:
         if os.name == 'nt' and path.startswith('/') and len(path) > 1 and path[2] == ':':
             # Windows路径，去掉开头的斜杠
             path = path[1:]
-        
+
         # 在Linux/Unix上，处理可能的双斜杠问题
         # file:////home/... 会被解析为 //home/...，需要修正为 /home/...
+        # file:///home/... 会被解析为 /home/...，保持不变
         elif path.startswith('//'):
             path = path[1:]
 
@@ -287,7 +291,7 @@ class ModelClient:
         """解密API Key"""
         return self._credential_service._decrypt_api_key(encrypted_key)
 
-    def get_image_description(self, image_path: str) -> str:
+    def get_image_description(self, image_path: str, custom_prompt: str = None) -> str:
         """使用VLM模型获取图像描述"""
         try:
             config = self._get_model_config()
@@ -303,6 +307,9 @@ class ModelClient:
             with open(local_path, "rb") as image_file:
                 base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
+            # 使用自定义提示词或默认提示词
+            prompt = custom_prompt if custom_prompt else self._get_image_description_prompt()
+
             response = client.chat.completions.create(
                 model=config.vlm_model_name,
                 messages=[
@@ -311,7 +318,7 @@ class ModelClient:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "请详细描述这张图片的内容，包括主要元素、文字信息、图表数据等。描述要准确、详细，便于理解图片传达的信息。"
+                                "text": prompt
                             },
                             {
                                 "type": "image_url",
@@ -323,6 +330,8 @@ class ModelClient:
                     }
                 ],
                 temperature=0.1,
+                frequency_penalty=0.3,  # 提高重复惩罚
+                presence_penalty=0.2,   # 增加存在惩罚
                 **(config.vlm_config_params or {})
             )
 
@@ -331,6 +340,34 @@ class ModelClient:
         except Exception as e:
             logger.error(f"图像描述生成失败: {image_path}, 错误: {e}")
             return f"[图像描述生成失败: {Path(image_path).name}]"
+
+    def _get_image_description_prompt(self) -> str:
+        """获取智能化的图像描述提示词"""
+        return """请根据图片类型进行详细描述，忽略页码、日期、页眉页脚等无关要素：
+
+**如果是文档截图**：
+- 重点描述文档的主要内容和结构
+- 提取关键文字信息和段落要点
+- 说明文档类型（如报告、论文、合同等）
+- 描述文档的布局和格式特点
+
+**如果是系统界面**：
+- 描述界面的功能和用途
+- 列出主要的按钮、菜单、输入框等UI元素
+- 说明界面的操作流程或功能模块
+- 描述界面的布局结构
+
+**如果是图表**：
+- 识别图表类型（柱状图、折线图、饼图、表格等）
+- 提取图表的标题、轴标签、图例信息
+- 描述数据趋势、关键数值和比较关系
+- 总结图表传达的主要信息和结论
+
+**通用要求**：
+- 描述要准确、详细，便于理解图片传达的核心信息
+- 使用清晰的结构化语言
+- 避免重复描述相同内容
+- 专注于有价值的信息内容"""
 
 
 class ImageProcessor:
@@ -471,3 +508,85 @@ class PageRangeUtils:
             page_start = page_ranges[0][2]
 
         return (page_start, page_end)
+
+
+class AsyncImageProcessor:
+    """异步图像处理器，支持并发处理多个图像"""
+
+    def __init__(self, db: Session, kb_id: str, max_concurrent: int = 5):
+        self.db = db
+        self.kb_id = kb_id
+        self.max_concurrent = max_concurrent
+        self.model_client = ModelClient(db, kb_id)
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def process_images_batch(self, image_paths: List[str]) -> List[Tuple[str, str, str]]:
+        """
+        批量异步处理图像
+        返回: [(原始路径, 处理后路径, 描述), ...]
+        """
+        if not image_paths:
+            return []
+
+        logger.info(f"开始批量处理 {len(image_paths)} 个图像，并发数: {self.max_concurrent}")
+
+        # 创建异步任务
+        tasks = [self._process_single_image(image_path) for image_path in image_paths]
+
+        # 并发执行所有任务
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 处理结果，过滤异常
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"图像处理失败: {image_paths[i]}, 错误: {result}")
+                # 创建错误结果
+                processed_results.append((
+                    image_paths[i],
+                    image_paths[i],
+                    f"[图像处理失败: {Path(image_paths[i]).name}]"
+                ))
+            else:
+                processed_results.append(result)
+
+        logger.info(f"批量图像处理完成，成功: {len([r for r in results if not isinstance(r, Exception)])}/{len(image_paths)}")
+        return processed_results
+
+    async def _process_single_image(self, image_path: str) -> Tuple[str, str, str]:
+        """
+        异步处理单个图像
+        返回: (原始路径, 处理后路径, 描述)
+        """
+        async with self.semaphore:  # 限制并发数
+            try:
+                # 在线程池中执行图像处理（因为PIL操作是CPU密集型）
+                loop = asyncio.get_event_loop()
+                with ThreadPoolExecutor() as executor:
+                    # 图像预处理
+                    processed_path = await loop.run_in_executor(
+                        executor, self._preprocess_image, image_path
+                    )
+
+                    # 获取图像描述
+                    description = await loop.run_in_executor(
+                        executor, self.model_client.get_image_description, processed_path
+                    )
+
+                return image_path, processed_path, description
+
+            except Exception as e:
+                logger.error(f"单个图像处理失败: {image_path}, 错误: {e}")
+                raise
+
+    def _preprocess_image(self, image_path: str) -> str:
+        """
+        预处理图像：转换为PNG并缩放
+        """
+        # 转换为PNG
+        png_path = ImageProcessor.convert_to_png(image_path)
+
+        # 缩放图像
+        resized_path = ImageProcessor.resize_image_if_needed(png_path, max_size=980)
+
+        return resized_path
