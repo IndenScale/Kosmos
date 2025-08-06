@@ -19,7 +19,7 @@ from app.schemas.fragment import FragmentType
 
 class OfficeParserBase(DocumentParser):
     """Office文档解析器基类 - PDF转换Wrapper"""
-    
+
     def _convert_and_parse_with_pdf(self, file_path: str, source_type: str) -> List[ParsedFragment]:
         """转换为PDF并使用PDF解析器处理"""
         # 创建临时目录
@@ -95,23 +95,31 @@ class OfficeParserBase(DocumentParser):
             # 获取输出目录
             output_dir = Path(pdf_path).parent
 
+            # 确保源文件路径是绝对路径
+            abs_source_path = str(Path(source_path).resolve())
+
             # 构建LibreOffice命令
             cmd = [
                 'libreoffice',
                 '--headless',
                 '--convert-to', 'pdf',
                 '--outdir', str(output_dir),
-                source_path
+                abs_source_path
             ]
 
             self.logger.info(f"执行LibreOffice转换命令: {' '.join(cmd)}")
+
+            # 为LibreOffice设置一个临时的HOME目录，避免用户配置问题
+            env = os.environ.copy()
+            env['HOME'] = str(output_dir)
 
             # 执行转换
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5分钟超时
+                timeout=300,  # 5分钟超时
+                env=env
             )
 
             if result.returncode != 0:

@@ -595,11 +595,11 @@ class UnifiedJobService:
 
         stats = query.with_entities(
             func.count(Job.id).label('total'),
-            func.sum(func.case([(Job.status == JobStatus.PENDING.value, 1)], else_=0)).label('pending'),
-            func.sum(func.case([(Job.status == JobStatus.RUNNING.value, 1)], else_=0)).label('running'),
-            func.sum(func.case([(Job.status == JobStatus.COMPLETED.value, 1)], else_=0)).label('completed'),
-            func.sum(func.case([(Job.status == JobStatus.FAILED.value, 1)], else_=0)).label('failed'),
-            func.sum(func.case([(Job.status == JobStatus.CANCELLED.value, 1)], else_=0)).label('cancelled'),
+            func.sum(func.case([(Job.status == JobStatus.PENDING.value, 1)], 0)).label('pending'),
+            func.sum(func.case([(Job.status == JobStatus.RUNNING.value, 1)], 0)).label('running'),
+            func.sum(func.case([(Job.status == JobStatus.COMPLETED.value, 1)], 0)).label('completed'),
+            func.sum(func.case([(Job.status == JobStatus.FAILED.value, 1)], 0)).label('failed'),
+            func.sum(func.case([(Job.status == JobStatus.CANCELLED.value, 1)], 0)).label('cancelled'),
         ).first()
 
         return JobStatsResponse(

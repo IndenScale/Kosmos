@@ -195,6 +195,128 @@ class FragmentService:
             last_updated=datetime.now()
         )
 
+    def get_related_fragments_by_page(
+        self,
+        fragment_id: str,
+        fragment_types: Optional[List[FragmentType]] = None
+    ) -> List[FragmentResponse]:
+        """获取与指定fragment在同一页面上的相关fragments
+        
+        Args:
+            fragment_id: 目标fragment的ID
+            fragment_types: 要返回的fragment类型列表，为空则返回所有类型
+            
+        Returns:
+            按类型、页码、索引排序的fragment列表
+        """
+        # 获取目标fragment
+        target_fragment = self.get_fragment_by_id(fragment_id)
+        if not target_fragment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Fragment not found"
+            )
+        
+        # 解析目标fragment的页码信息
+        try:
+            if isinstance(target_fragment.meta_info, str):
+                target_meta = json.loads(target_fragment.meta_info)
+            else:
+                target_meta = target_fragment.meta_info or {}
+        except (json.JSONDecodeError, TypeError):
+            target_meta = {}
+        
+        target_page_start = target_meta.get('page_start')
+        target_page_end = target_meta.get('page_end')
+        target_page_number = target_meta.get('page_number')
+        
+        # 如果没有页码信息，返回空列表
+        if not any([target_page_start, target_page_end, target_page_number]):
+            return []
+        
+        # 构建查询：同一文档的fragments
+        query = self.db.query(Fragment).filter(
+            Fragment.document_id == target_fragment.document_id
+        )
+        
+        # 按fragment类型过滤
+        if fragment_types:
+            type_values = [ft.value for ft in fragment_types]
+            query = query.filter(Fragment.fragment_type.in_(type_values))
+        
+        # 获取所有候选fragments
+        candidate_fragments = query.all()
+        
+        # 过滤出页面重合的fragments
+        related_fragments = []
+        for fragment in candidate_fragments:
+            try:
+                if isinstance(fragment.meta_info, str):
+                    meta = json.loads(fragment.meta_info)
+                else:
+                    meta = fragment.meta_info or {}
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+            
+            frag_page_start = meta.get('page_start')
+            frag_page_end = meta.get('page_end')
+            frag_page_number = meta.get('page_number')
+            
+            # 检查页面是否重合
+            page_overlap = False
+            
+            # 情况1：都有page_start和page_end
+            if (target_page_start is not None and target_page_end is not None and
+                frag_page_start is not None and frag_page_end is not None):
+                page_overlap = not (target_page_end < frag_page_start or frag_page_end < target_page_start)
+            
+            # 情况2：都有page_number
+            elif (target_page_number is not None and frag_page_number is not None):
+                page_overlap = target_page_number == frag_page_number
+            
+            # 情况3：混合情况
+            elif target_page_number is not None:
+                if frag_page_start is not None and frag_page_end is not None:
+                    page_overlap = frag_page_start <= target_page_number <= frag_page_end
+                elif frag_page_number is not None:
+                    page_overlap = target_page_number == frag_page_number
+            
+            elif frag_page_number is not None:
+                if target_page_start is not None and target_page_end is not None:
+                    page_overlap = target_page_start <= frag_page_number <= target_page_end
+            
+            if page_overlap:
+                related_fragments.append(fragment)
+        
+        # 排序：按fragment_type、页码、fragment_index
+        def sort_key(frag):
+            try:
+                if isinstance(frag.meta_info, str):
+                    meta = json.loads(frag.meta_info)
+                else:
+                    meta = frag.meta_info or {}
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+            
+            # 类型排序优先级：text < screenshot < figure
+            type_priority = {
+                FragmentType.TEXT.value: 1,
+                FragmentType.SCREENSHOT.value: 2,
+                FragmentType.FIGURE.value: 3
+            }
+            
+            page_num = meta.get('page_start') or meta.get('page_number') or 0
+            
+            return (
+                type_priority.get(frag.fragment_type, 999),
+                page_num,
+                frag.fragment_index
+            )
+        
+        related_fragments.sort(key=sort_key)
+        
+        return [FragmentResponse.model_validate(fragment) for fragment in related_fragments]
+
     def get_fragment(self, fragment_id: str) -> Optional[FragmentResponse]:
         """获取Fragment详情"""
         fragment = self.get_fragment_by_id(fragment_id)

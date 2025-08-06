@@ -73,7 +73,49 @@ class DocumentParser(AbstractParser):
 
 class ImageParser(AbstractParser):
     """图像解析器基类 - 用于处理图像文件"""
-    pass
+    
+    def __init__(self, db=None, kb_id=None):
+        super().__init__(db, kb_id)
+        # 初始化AI模型客户端用于图像描述生成
+        try:
+            from app.parsers.parser_utils import ModelClient
+            self.model_client = ModelClient(db, kb_id) if db and kb_id else None
+        except Exception as e:
+            self.logger.warning(f"无法初始化AI客户端，图像描述功能将被禁用: {e}")
+            self.model_client = None
+    
+    def _process_image(self, file_path: str) -> tuple[str, str]:
+        """处理图像：转换格式、缩放并生成描述
+        
+        Args:
+            file_path: 图像文件路径
+            
+        Returns:
+            tuple: (处理后的图像路径, 图像描述)
+        """
+        try:
+            from app.parsers.parser_utils import ImageProcessor
+            
+            # 转换为PNG格式
+            png_path = ImageProcessor.convert_to_png(file_path)
+            
+            # 缩放图像到合适大小
+            resized_path = ImageProcessor.resize_image_if_needed(png_path, max_size=980)
+            
+            # 获取图像描述
+            if self.model_client:
+                description = self.model_client.get_image_description(resized_path)
+            else:
+                description = f"[图像描述生成功能未启用: {Path(file_path).name}]"
+            
+            return resized_path, description
+            
+        except Exception as e:
+            self.logger.error(f"图像处理失败: {file_path}, 错误: {e}")
+            # 返回原始路径和错误描述
+            from app.parsers.parser_utils import url_to_local_path
+            local_path = url_to_local_path(file_path)
+            return local_path, f"[图像处理失败: {Path(local_path).name}]"
 
 
 class TextParser(AbstractParser):

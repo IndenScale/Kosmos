@@ -109,15 +109,25 @@ class IndexService:
                     logger.warning(f"关闭embedding客户端时出错: {e}")
 
     async def _generate_tags(self, content: str, max_tags: int = 20) -> List[str]:
-        """生成标签"""
+        """生成标签。如果知识库的标签字典为空，则跳过此阶段。"""
         try:
             # 获取知识库的标签字典
             kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == self.kb_id).first()
             if not kb or not kb.tag_dictionary:
-                logger.warning(f"知识库 {self.kb_id} 没有配置标签字典")
+                logger.info(f"知识库 {self.kb_id} 的标签字典未配置或为空，跳过标签生成。")
                 return []
 
             tag_directory = kb.tag_dictionary
+            if isinstance(tag_directory, str):
+                try:
+                    tag_directory = json.loads(tag_directory)
+                except json.JSONDecodeError:
+                    logger.warning(f"知识库 {self.kb_id} 的标签字典不是有效的JSON，跳过标签生成。")
+                    return []
+
+            if not tag_directory or not isinstance(tag_directory, dict):
+                logger.info(f"知识库 {self.kb_id} 的标签字典为空或格式不正确，跳过标签生成。")
+                return []
 
             # 尝试使用LLM生成标签
             try:

@@ -20,6 +20,7 @@ from app.schemas.fragment import (
     FragmentStatsResponse,
     FragmentType
 )
+from fastapi.responses import RedirectResponse
 from app.models import Document
 
 router = APIRouter(prefix="/api/v1", tags=["fragments"])
@@ -115,6 +116,37 @@ def get_kb_fragment_stats(
     """获取知识库Fragment统计信息"""
     fragment_service = FragmentService(db)
     return fragment_service.get_kb_fragment_stats(kb_id)
+
+
+@router.get("/fragments/{fragment_id}/related", response_model=List[FragmentResponse])
+def get_related_fragments(
+    fragment_id: str,
+    fragment_types: Optional[str] = Query(None, description="Fragment类型过滤，多个类型用逗号分隔，如: text,figure,screenshot"),
+    db: Session = Depends(get_db)
+):
+    """获取与指定fragment在同一页面上的相关fragments
+    
+    根据页码信息查找同一文档中页面重合的fragments，
+    支持按类型过滤，结果按类型、页码、索引排序
+    """
+    fragment_service = FragmentService(db)
+    
+    # 解析fragment_types参数
+    parsed_fragment_types = None
+    if fragment_types:
+        try:
+            type_list = [t.strip() for t in fragment_types.split(',') if t.strip()]
+            parsed_fragment_types = [FragmentType(t) for t in type_list]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无效的fragment类型: {str(e)}. 有效值: {[t.value for t in FragmentType]}"
+            )
+    
+    return fragment_service.get_related_fragments_by_page(
+        fragment_id=fragment_id,
+        fragment_types=parsed_fragment_types
+    )
 
 
 @router.get("/fragments/{fragment_id}/image")
