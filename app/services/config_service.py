@@ -24,7 +24,9 @@ class ConfigService:
     
     def __init__(self):
         self.credential_service = CredentialService()
-        self.config_dir = Path("/home/sdf/AssessmentSystem_v2/Kosmos/config")
+        # 使用相对于当前文件路径的配置目录
+        project_root = Path(__file__).parent.parent.parent
+        self.config_dir = project_root / "config"
     
     def get_user_config_path(self, user_id: str) -> Path:
         """获取用户配置文件路径"""

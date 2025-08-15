@@ -102,6 +102,8 @@ class OfficeParserBase(DocumentParser):
             cmd = [
                 'libreoffice',
                 '--headless',
+                '--invisible',
+                '--nologo',
                 '--convert-to', 'pdf',
                 '--outdir', str(output_dir),
                 abs_source_path
@@ -109,9 +111,10 @@ class OfficeParserBase(DocumentParser):
 
             self.logger.info(f"执行LibreOffice转换命令: {' '.join(cmd)}")
 
-            # 为LibreOffice设置一个临时的HOME目录，避免用户配置问题
+            # 为LibreOffice设置一个临时的HOME目录，并指定语言环境，避免用户配置和字体问题
             env = os.environ.copy()
             env['HOME'] = str(output_dir)
+            env['LANG'] = 'zh_CN.UTF-8'
 
             # 执行转换
             result = subprocess.run(

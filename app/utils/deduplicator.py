@@ -1,8 +1,8 @@
 import hashlib
 import numpy as np
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
+from sqlalchemy.orm import Session
 from app.config import config
-from app.utils.ai_utils import AIUtils
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,9 +10,15 @@ logger = logging.getLogger(__name__)
 class Deduplicator:
     """去重工具类"""
 
-    def __init__(self):
-        self.ai_utils = AIUtils() if config.deduplication.semantic_similarity_enabled else None
+    def __init__(self, db: Session = None, kb_id: str = None):
         self.config = config.deduplication
+        self.db = db
+        self.kb_id = kb_id
+        # 如果提供了db和kb_id，则使用知识库配置的凭证
+        self.use_kb_credentials = db is not None and kb_id is not None
+        if self.use_kb_credentials:
+            from app.services.credential_service import CredentialService
+            self.credential_service = CredentialService()
 
     def deduplicate_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """对搜索结果进行去重"""
@@ -56,6 +62,62 @@ class Deduplicator:
                 logger.debug(f"发现重复内容，已跳过: {content[:50]}...")
 
         return deduplicated
+
+    def _get_embedding_with_kb_credentials(self, text: str) -> Optional[List[float]]:
+        """使用知识库配置的凭证获取嵌入向量"""
+        try:
+            from app.models.credential import KBModelConfig
+            from app.models.knowledge_base import KnowledgeBase
+            from app.models.credential import ModelAccessCredential
+            from openai import OpenAI
+
+            # 获取知识库配置
+            config = self.db.query(KBModelConfig).filter(
+                KBModelConfig.kb_id == self.kb_id
+            ).first()
+
+            if not config or not config.embedding_credential_id:
+                logger.error(f"知识库 {self.kb_id} 未配置嵌入模型")
+                return None
+
+            # 获取知识库所有者ID
+            kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == self.kb_id).first()
+            if not kb:
+                logger.error(f"知识库 {self.kb_id} 不存在")
+                return None
+
+            # 获取凭证信息
+            credential = self.db.query(ModelAccessCredential).filter(
+                ModelAccessCredential.id == config.embedding_credential_id
+            ).first()
+            if not credential:
+                logger.error(f"凭证 {config.embedding_credential_id} 不存在")
+                return None
+
+            # 获取解密的API Key
+            api_key = self.credential_service.get_decrypted_api_key(
+                self.db, config.embedding_credential_id, kb.owner_id
+            )
+            if not api_key:
+                logger.error(f"无法获取解密的API Key")
+                return None
+
+            # 创建OpenAI客户端
+            base_url = credential.base_url.strip() if credential.base_url else "https://api.openai.com/v1"
+            client = OpenAI(api_key=api_key, base_url=base_url)
+
+            # 获取嵌入向量
+            model_name = config.embedding_model_name or "text-embedding-ada-002"
+            response = client.embeddings.create(
+                model=model_name,
+                input=text
+            )
+
+            return response.data[0].embedding
+
+        except Exception as e:
+            logger.error(f"使用知识库凭证获取嵌入向量失败: {str(e)}")
+            return None
 
     def _semantic_deduplication_by_score(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """基于搜索结果相似度分数的语义去重"""
@@ -140,8 +202,8 @@ class Deduplicator:
     # 保留原有的语义去重方法作为备用
     def _semantic_deduplication(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """语义相似度去重（原有方法，基于embedding计算）"""
-        if not self.ai_utils:
-            return results
+        # if not self.ai_utils:
+        #     return results
 
         deduplicated = []
         embeddings_cache = {}
@@ -157,8 +219,16 @@ class Deduplicator:
             # 获取当前内容的embedding
             try:
                 if content not in embeddings_cache:
-                    embeddings_cache[content] = self.ai_utils.get_embedding(content)
+                    if self.use_kb_credentials:
+                        embeddings_cache[content] = self._get_embedding_with_kb_credentials(content)
+                    # else:
+                    #     embeddings_cache[content] = self.ai_utils.get_embedding(content)
                 current_embedding = embeddings_cache[content]
+
+                if current_embedding is None:
+                    logger.warning(f"无法获取embedding，跳过语义去重")
+                    deduplicated.append(result)
+                    continue
             except Exception as e:
                 logger.warning(f"获取embedding失败，跳过语义去重: {e}")
                 deduplicated.append(result)
@@ -174,8 +244,14 @@ class Deduplicator:
 
                 try:
                     if existing_content not in embeddings_cache:
-                        embeddings_cache[existing_content] = self.ai_utils.get_embedding(existing_content)
+                        if self.use_kb_credentials:
+                            embeddings_cache[existing_content] = self._get_embedding_with_kb_credentials(existing_content)
+                        # else:
+                        #     embeddings_cache[existing_content] = self.ai_utils.get_embedding(existing_content)
                     existing_embedding = embeddings_cache[existing_content]
+
+                    if existing_embedding is None:
+                        continue
 
                     # 计算余弦相似度
                     similarity = self._cosine_similarity(current_embedding, existing_embedding)

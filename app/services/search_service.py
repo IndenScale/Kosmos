@@ -5,7 +5,6 @@ from sqlalchemy import and_, or_, func
 from typing import List, Dict, Any, Optional
 from app.models import Fragment, KBFragment, Index, KnowledgeBase
 from app.repositories.milvus_repo import MilvusRepository
-from app.utils.ai_utils import AIUtils
 from app.utils.query_parser import QueryParser
 from app.utils.reranker import Reranker
 from app.utils.deduplicator import Deduplicator
@@ -22,9 +21,7 @@ class SearchService:
     def __init__(self, db: Session):
         self.db = db
         self.milvus_repo = MilvusRepository()
-        self.ai_utils = AIUtils()
         self.reranker = Reranker()
-        self.deduplicator = Deduplicator()
         self.tag_recommendation_service = TagRecommendationService(db)
         self.query_parser = QueryParser()
         self.credential_service = CredentialService()  # 不传递db参数
@@ -146,7 +143,6 @@ class SearchService:
             detailed_results = self._get_detailed_results(
                 milvus_results, kb_id, fragment_types_str, top_k * 2
             )
-
             if not detailed_results:
                 return self._empty_search_result("未找到匹配的Fragment", query_parse_result)
 
@@ -160,9 +156,10 @@ class SearchService:
                     rerank_score = result.get('rerank_score')
                     original_score = result.get('score')
                     logger.info(f"  结果{i+1}: booster_score={booster_score}, rerank_score={rerank_score}, original_score={original_score}")
-
+            print("rerank finished")
             # 6. 去重处理
-            deduplicated_results = self.deduplicator.deduplicate_results(detailed_results)
+            deduplicator = Deduplicator(db=self.db, kb_id=kb_id)
+            deduplicated_results = deduplicator.deduplicate_results(detailed_results)
 
             # 调试：输出去重后的前3个结果的分数
             if like_tags:
@@ -172,7 +169,7 @@ class SearchService:
                     rerank_score = result.get('rerank_score')
                     original_score = result.get('score')
                     logger.info(f"  结果{i+1}: booster_score={booster_score}, rerank_score={rerank_score}, original_score={original_score}")
-
+            print("deduplicate finished")
             # 7. 截取最终结果
             final_results = deduplicated_results[:top_k]
 
@@ -266,12 +263,10 @@ class SearchService:
             from app.models.knowledge_base import KnowledgeBase
             from app.models.credential import ModelAccessCredential
             from openai import OpenAI
-
             # 获取知识库配置
             config = self.db.query(KBModelConfig).filter(
                 KBModelConfig.kb_id == kb_id
             ).first()
-
             if not config or not config.embedding_credential_id:
                 logger.error(f"知识库 {kb_id} 未配置嵌入模型")
                 return None
@@ -289,7 +284,6 @@ class SearchService:
             if not credential:
                 logger.error(f"凭证 {config.embedding_credential_id} 不存在")
                 return None
-
             # 获取解密的API Key
             api_key = self.credential_service.get_decrypted_api_key(
                 self.db, config.embedding_credential_id, kb.owner_id
@@ -301,14 +295,12 @@ class SearchService:
             # 创建OpenAI客户端
             base_url = credential.base_url.strip() if credential.base_url else "https://api.openai.com/v1"
             client = OpenAI(api_key=api_key, base_url=base_url)
-
             # 获取嵌入向量
             model_name = config.embedding_model_name or "text-embedding-ada-002"
             response = client.embeddings.create(
                 model=model_name,
                 input=text
             )
-
             return response.data[0].embedding
 
         except Exception as e:

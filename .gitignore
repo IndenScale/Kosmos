@@ -65,6 +65,7 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+volumes/
 
 # Temporary files
 temp/

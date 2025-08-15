@@ -73,7 +73,7 @@ def search_knowledge_base(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"搜索失败: {str(e)}")
+        # logger.error(f"搜索失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
 
 
@@ -134,7 +134,7 @@ def search_knowledge_base_get(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"搜索失败: {str(e)}")
+        # logger.error(f"搜索失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
 
 @router.get("/kbs/{kb_id}/fragments/stats", response_model=FragmentStatsResponse)

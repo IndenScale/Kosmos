@@ -36,11 +36,8 @@ class UploadConfig:
         
         # Office文件
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document": FileCategory.OFFICE,  # .docx
-        "application/msword": FileCategory.OFFICE,  # .doc
         "application/vnd.openxmlformats-officedocument.presentationml.presentation": FileCategory.OFFICE,  # .pptx
-        "application/vnd.ms-powerpoint": FileCategory.OFFICE,  # .ppt
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": FileCategory.OFFICE,  # .xlsx
-        "application/vnd.ms-excel": FileCategory.OFFICE,  # .xls
         
         # 文本文件
         "text/plain": FileCategory.TEXT,
@@ -80,11 +77,8 @@ class UploadConfig:
         
         # Office文件
         '.docx': FileCategory.OFFICE,
-        '.doc': FileCategory.OFFICE,
         '.pptx': FileCategory.OFFICE,
-        '.ppt': FileCategory.OFFICE,
         '.xlsx': FileCategory.OFFICE,
-        '.xls': FileCategory.OFFICE,
         
         # 文本文件
         '.txt': FileCategory.TEXT,

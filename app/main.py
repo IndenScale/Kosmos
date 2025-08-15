@@ -29,6 +29,7 @@ dotenv_path = Path(__file__).parent.parent / '.env'
 # Load the .env file from the specified path
 load_dotenv(dotenv_path=dotenv_path)
 
+#
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("应用启动，开始创建数据库表...")
@@ -62,7 +63,8 @@ allowed_origins = [
     "http://127.0.0.1:3000",
     "http://localhost:3020",  # 本地开发
     "http://127.0.0.1:3020",  # 本地开发
-    "http://10.19.8.199:3020",  # 如果前端部署在这个IP
+    "http://10.17.99.13:3020",  # 如果前端部署在这个IP
+    "http://10.17.99.13:3020",
 ]
 
 # 添加CORS中间件

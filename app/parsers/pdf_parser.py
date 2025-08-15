@@ -2,12 +2,10 @@
 # 创建时间: 2025-07-19
 # 描述: 实现PDF文件的解析，使用mineru进行文档解析
 
-import os
 import re
 import uuid
 import traceback
 import time
-import subprocess
 import json
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -18,6 +16,7 @@ from app.schemas.fragment import FragmentType
 from app.config import get_logger
 from app.utils.text_splitter import TextSplitter
 import shutil
+from app.parsers.mineru_client import MineRUClient
 
 
 class PdfParser(DocumentParser):
@@ -26,8 +25,6 @@ class PdfParser(DocumentParser):
     def __init__(self, db, kb_id):
         super().__init__(db, kb_id)
         self.logger = get_logger(self.__class__.__name__)
-        # 从环境变量获取mineru路径
-        self.mineru_path = os.getenv('MINERU_PATH', '/home/sdf/AssessmentSystem_v2/Kosmos/.venv/bin/mineru')
         # 初始化AI模型客户端用于图像描述生成
         try:
             from app.parsers.parser_utils import ModelClient
@@ -107,7 +104,7 @@ class PdfParser(DocumentParser):
             return [fragment]
 
     def _parse_with_mineru(self, pdf_path: str) -> tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
-        """使用mineru解析PDF文件"""
+        """使用mineru服务解析PDF文件"""
         try:
             # 创建输出目录
             pdf_name = Path(pdf_path).stem
@@ -115,88 +112,43 @@ class PdfParser(DocumentParser):
             output_dir = project_root / "data" / "temp" / f"mineru_output_{uuid.uuid4().hex[:8]}"
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # 【新增】使用fitz预处理PDF，进行清理和标准化
-            preprocessed_pdf_path = output_dir / f"{pdf_name}_preprocessed.pdf"
-            try:
-                import fitz  # PyMuPDF
-                self.logger.info(f"使用fitz预处理PDF: {pdf_path}")
-                with fitz.open(pdf_path) as doc:
-                    doc.save(str(preprocessed_pdf_path), garbage=4, deflate=True, clean=True)
-                self.logger.info(f"PDF预处理完成，保存至: {preprocessed_pdf_path}")
-                # 使用预处理过的PDF进行后续操作
-                target_pdf_path = str(preprocessed_pdf_path)
-            except Exception as fitz_err:
-                self.logger.warning(f"fitz预处理PDF失败: {fitz_err}. 将使用原始PDF文件继续。")
-                target_pdf_path = pdf_path
+            # 初始化 MineRU 客户端
+            mineru_client = MineRUClient()
 
-            # 构建mineru命令
-            cmd = [
-                self.mineru_path,
-                "-p", target_pdf_path, # 使用预处理过的PDF
-                "-o", str(output_dir),
-                "--backend", "pipeline",
-                "--method", "txt"
-            ]
+            # 调用客户端进行文件解析
+            self.logger.info(f"使用MineRU客户端解析: {pdf_path}")
+            result = mineru_client.parse_file(pdf_path, str(output_dir))
+            self.logger.info(f"MineRU客户端解析完成")
 
-            self.logger.info(f"执行mineru命令: {' '.join(cmd)}")
+            # 从返回结果中提取所需信息
+            if not result or 'results' not in result or not result['results']:
+                raise Exception("MineRU服务返回结果为空或格式不正确")
 
-            # 执行mineru命令
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=3600  # 1小时超时
-            )
+            # 获取第一个文件的解析结果
+            first_file_key = next(iter(result['results']))
+            file_results = result['results'][first_file_key]
 
-            # 查找生成的markdown文件
-            markdown_files = list(output_dir.rglob("*.md"))
-
-            if result.returncode != 0 or not markdown_files:
-                stderr_decoded = result.stderr.decode('utf-8', errors='ignore').strip()
-                stdout_decoded = result.stdout.decode('utf-8', errors='ignore').strip()
-                
-                error_message = "mineru执行失败"
-                if not markdown_files:
-                    error_message = "未找到mineru生成的markdown文件"
-                
-                if result.returncode != 0:
-                    error_message += f" (返回码: {result.returncode})"
-
-                details = []
-                if stderr_decoded:
-                    details.append(f"stderr: {stderr_decoded}")
-                if stdout_decoded:
-                    details.append(f"stdout: {stdout_decoded}")
-                
-                if details:
-                    error_message += ". " + ". ".join(details)
-                
-                raise Exception(error_message)
-
-            markdown_file = markdown_files[0]
-            self.logger.info(f"找到markdown文件: {markdown_file}")
-
-            # 读取markdown内容
-            with open(markdown_file, 'r', encoding='utf-8') as f:
-                markdown_content = f.read()
-
-            # 读取content_list.json文件获取页面信息
-            content_list_file = markdown_file.parent / f"{pdf_name}_content_list.json"
-            page_info_map = {}
-            if content_list_file.exists():
-                page_info_map = self._parse_content_list(content_list_file)
+            markdown_content = file_results.get('md_content', '')
+            if not markdown_content:
+                raise Exception("MineRU服务未返回Markdown内容")
 
             # 查找图像文件夹
-            images_dir = markdown_file.parent / "images"
+            images_dir = output_dir / "images"
             images_info = []
 
             if images_dir.exists():
-                # 提取markdown中的图像信息，包含页面信息
-                images_info = self._extract_images_from_markdown(markdown_content, images_dir, page_info_map)
+                # 提取markdown中的图像信息
+                images_info = self._extract_images_from_markdown(markdown_content, images_dir)
+
+            # content_list.json 不再由远程服务直接提供，需要本地构建或适配
+            # 此处暂时返回空page_info_map
+            page_info_map = {}
 
             return markdown_content, images_info, page_info_map
 
         except Exception as e:
-            self.logger.error(f"mineru解析失败: {e}")
+            self.logger.error(f"mineru客户端解析失败: {e}")
+            self.logger.error(traceback.format_exc())
             raise
 
     def _parse_content_list(self, content_list_file: Path) -> Dict[str, int]:
