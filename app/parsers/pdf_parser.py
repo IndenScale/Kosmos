@@ -103,8 +103,14 @@ class PdfParser(DocumentParser):
 
             return [fragment]
 
-    def _parse_with_mineru(self, pdf_path: str) -> tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
-        """使用mineru服务解析PDF文件"""
+    def _parse_with_mineru(self, pdf_path: str) -> tuple[str, List[Dict[str, Any]], Dict[str, int]]:
+        """使用mineru服务解析PDF文件
+        
+        支持三种调用方式：
+        1. SGLang Server CLI方式（默认）
+        2. 传统HTTP API方式（回落）
+        3. 命令行方式（CLI回落）
+        """
         try:
             # 创建输出目录
             pdf_name = Path(pdf_path).stem
@@ -112,12 +118,17 @@ class PdfParser(DocumentParser):
             output_dir = project_root / "data" / "temp" / f"mineru_output_{uuid.uuid4().hex[:8]}"
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # 初始化 MineRU 客户端
+            # 初始化 MineRU 客户端，支持SGLang Server模式
             mineru_client = MineRUClient()
 
-            # 调用客户端进行文件解析
-            self.logger.info(f"使用MineRU客户端解析: {pdf_path}")
-            result = mineru_client.parse_file(pdf_path, str(output_dir))
+            # 优先使用SGLang Server CLI方式解析
+            self.logger.info(f"使用MineRU客户端解析: {pdf_path} (优先使用SGLang Server CLI模式)")
+            result = mineru_client.parse_file(
+                pdf_path, 
+                str(output_dir),
+                backend='vlm-sglang-client',
+                sglang_url='http://10.17.99.15:30005'
+            )
             self.logger.info(f"MineRU客户端解析完成")
 
             # 从返回结果中提取所需信息
