@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+sqlalchemy
+pytransitions
+Jinja2
+periodiq

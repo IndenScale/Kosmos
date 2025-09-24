@@ -1,0 +1,8 @@
+# 启动评估调度器
+/home/hxdi/Kosmos/.venv/bin/python -m periodiq assessment_service.app.broker
+
+# 启动评估默认队列Worker
+/home/hxdi/Kosmos/.venv/bin/python -m dramatiq assessment_service.app.broker --queues default --processes 1 --threads 1
+
+# 启动评估Agent Worker
+/home/hxdi/Kosmos/.venv/bin/python -m dramatiq assessment_service.app.broker --queues agent_runners --processes 2 --threads 2

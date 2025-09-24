@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>评估报告 - {{ job.name }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 960px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: #f9f9f9;
+        }
+        .report-header {
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+        .report-header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            color: #2c3e50;
+        }
+        .report-header p {
+            margin: 5px 0;
+            color: #7f8c8d;
+        }
+        .finding-card {
+            background-color: #ffffff;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: box-shadow 0.3s ease;
+        }
+        .finding-card:hover {
+            box-shadow: 0 8px 12px rgba(0,0,0,0.1);
+        }
+        .finding-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .finding-header h2 {
+            margin: 0;
+            font-size: 1.4em;
+            color: #34495e;
+        }
+        .judgement {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: #fff;
+            font-size: 0.9em;
+        }
+        .judgement-符合 { background-color: #27ae60; }
+        .judgement-不符合 { background-color: #c0392b; }
+        .judgement-部分符合 { background-color: #f39c12; }
+        .judgement-不涉及 { background-color: #7f8c8d; }
+        .judgement-无法确认 { background-color: #2980b9; }
+        
+        .finding-section {
+            margin-bottom: 20px;
+        }
+        .finding-section h3 {
+            font-size: 1.1em;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            border-left: 3px solid #3498db;
+            padding-left: 10px;
+        }
+        .finding-section p, .finding-section pre {
+            margin: 0;
+            padding: 10px;
+            background-color: #fdfdfd;
+            border: 1px solid #f0f0f0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .evidence-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .evidence-item {
+            border: 1px solid #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .evidence-item p {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+        }
+        .evidence-snapshot {
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            padding: 5px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .evidence-snapshot img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 3px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #95a5a6;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="report-header">
+        <h1>评估报告</h1>
+        <p><strong>任务名称:</strong> {{ job.name }}</p>
+        <p><strong>任务ID:</strong> {{ job.id }}</p>
+        <p><strong>评估框架ID:</strong> {{ job.framework_id }}</p>
+        <p><strong>状态:</strong> {{ job.status }}</p>
+    </div>
+
+    {% for finding in findings %}
+    <div class="finding-card">
+        <div class="finding-header">
+            <h2>{{ finding.control_item_definition.display_id }}</h2>
+            <span class="judgement judgement-{{ finding.judgement }}">{{ finding.judgement }}</span>
+        </div>
+
+        <div class="finding-section">
+            <h3>控制项要求</h3>
+            <p>{{ finding.control_item_definition.content }}</p>
+        </div>
+
+        <div class="finding-section">
+            <h3>评估意见</h3>
+            <p>{{ finding.comment }}</p>
+        </div>
+
+        {% if finding.supplement %}
+        <div class="finding-section">
+            <h3>补充说明</h3>
+            <p>{{ finding.supplement }}</p>
+        </div>
+        {% endif %}
+
+        <div class="finding-section">
+            <h3>证据列表</h3>
+            {% if finding.evidence_content %}
+                <ul class="evidence-list">
+                {% for evidence in finding.evidence_content %}
+                    <li class="evidence-item">
+                        <p><strong>文档ID:</strong> {{ evidence.doc_id }}</p>
+                        <p><strong>行号:</strong> {{ evidence.start_line }} - {{ evidence.end_line }}</p>
+                        <h4>证据原文:</h4>
+                        <pre>{{ evidence.content }}</pre>
+
+                        {% if evidence.page_image_data_urls %}
+                        <div class="evidence-snapshot">
+                            <h4>页面快照:</h4>
+                            {% for img_url in evidence.page_image_data_urls %}
+                                <img src="{{ img_url }}" alt="Page snapshot for evidence" style="margin-bottom: 10px;">
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if evidence.assets %}
+                            <h4>关联资产:</h4>
+                            {% for asset in evidence.assets %}
+                                <div class="asset-item">
+                                    <p><strong>资产ID:</strong> {{ asset.asset_id }}</p>
+                                    <p><strong>类型:</strong> {{ asset.asset_type }}</p>
+                                    <p><strong>描述:</strong></p>
+                                    <pre>{{ asset.description }}</pre>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>无</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="footer">
+        <p>报告生成于 {{ generation_time }}</p>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,45 @@
+# 虚拟环境
+.venv
+
+# SWE Agents
+.gemini
+.qwen
+
+# environments
+.env
+*.env
+
+.kosmos_cli_state.json
+
+# 产物
+content_extraction
+Artifacts
+todos/*
+reports/
+
+# 缓存
+__pycache__/
+
+# test data
+test_data
+test_payload
+test_report
+
+# logs
+logs
+
+# database
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+
+# 集成
+relic_system
+
+# 运维
+.pids/
+
+DEPLOYMENT_NOTES.md
+docker*
+Docker*
