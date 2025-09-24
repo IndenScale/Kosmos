@@ -43,3 +43,6 @@ relic_system
 DEPLOYMENT_NOTES.md
 docker*
 Docker*
+
+# 包
+node_models/
