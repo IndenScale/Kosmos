@@ -18,7 +18,7 @@ class GrepSingleDocumentResponse(BaseModel):
 
 class GrepScope(BaseModel):
     document_ids: Optional[List[uuid.UUID]] = Field(None, description="A list of document IDs to search within.")
-    knowledge_space_id: Optional[uuid.UUID]] = Field(None, description="A knowledge space ID to search all its documents.")
+    knowledge_space_id: Optional[uuid.UUID] = Field(None, description="A knowledge space ID to search all its documents.")
     doc_ext: Optional[str] = Field(None, description="Filter documents by file extension (e.g., .pdf, .docx).")
 
     @field_validator(
@@ -40,10 +40,10 @@ class GrepScope(BaseModel):
 
         if doc_ids_provided and ks_id_provided:
             raise ValueError("Provide either 'document_ids' or 'knowledge_space_id', but not both.")
-        
+
         if not doc_ids_provided and not ks_id_provided:
             raise ValueError("Exactly one of 'document_ids' or 'knowledge_space_id' must be provided.")
-            
+
         return values
 
 class MultiGrepRequest(BaseModel):
@@ -51,19 +51,19 @@ class MultiGrepRequest(BaseModel):
     case_sensitive: bool = Field(False, description="Whether the pattern matching should be case-sensitive.")
     scope: GrepScope
     max_matches_per_doc: Optional[int] = Field(
-        None, 
+        None,
         gt=0,
         description="Maximum number of matches to return per document. Overrides the server default."
     )
     context_lines_before: int = Field(
-        0, 
-        ge=0, 
+        0,
+        ge=0,
         le=10,
         description="Number of lines to include before the matching line."
     )
     context_lines_after: int = Field(
-        0, 
-        ge=0, 
+        0,
+        ge=0,
         le=10,
         description="Number of lines to include after the matching line."
     )
