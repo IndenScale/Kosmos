@@ -3,7 +3,7 @@
 
 # Wait for PostgreSQL to be ready
 echo "Waiting for PostgreSQL to be ready..."
-until python -c "import psycopg2; conn = psycopg2.connect(host='kosmos-postgresql', port=5432, dbname='kosmos', user='kosmos', password='kosmos123'); conn.close()" 2>/dev/null; do
+until python -c "import os, psycopg2; conn = psycopg2.connect(host='kosmos-postgresql', port=5432, dbname='kosmos', user='kosmos', password=os.environ.get('POSTGRES_PASSWORD')); conn.close()" 2>/dev/null; do
     sleep 1
 done
 echo "PostgreSQL is ready."
