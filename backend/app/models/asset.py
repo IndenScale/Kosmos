@@ -6,17 +6,17 @@ from sqlalchemy.orm import relationship
 from ..models.base import Base, UUIDChar
 
 class AssetAnalysisStatus(str, enum.Enum):
-    NOT_ANALYZED = "not_analyzed"
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    not_analyzed = "not_analyzed"
+    pending = "pending"
+    in_progress = "in_progress"
+    completed = "completed"
+    failed = "failed"
 
 class AssetType(str, enum.Enum):
-    FIGURE = "figure"
-    TABLE = "table"
-    AUDIO = "audio"
-    VIDEO = "video"
+    figure = "figure"
+    table = "table"
+    audio = "audio"
+    video = "video"
     # Add other asset types as needed
 
 class Asset(Base):
@@ -38,8 +38,8 @@ class Asset(Base):
     analysis_status = Column(
         Enum(AssetAnalysisStatus, name='asset_analysis_status_enum', create_type=True),
         nullable=False,
-        default=AssetAnalysisStatus.NOT_ANALYZED,
-        server_default=AssetAnalysisStatus.NOT_ANALYZED.value,
+        default=AssetAnalysisStatus.not_analyzed,
+        server_default=AssetAnalysisStatus.not_analyzed.value,
         index=True
     )
     

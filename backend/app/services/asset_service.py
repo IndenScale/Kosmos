@@ -7,7 +7,7 @@ from datetime import timedelta
 from fastapi import HTTPException, status
 from minio import Minio
 from sqlalchemy import func, case
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .. import schemas
 from ..models import Asset, Document, DocumentAssetContext, KnowledgeSpace, User
@@ -49,8 +49,8 @@ class AssetService:
         # Define the dynamic analysis_status using a CASE statement.
         # This is the core of the fix.
         analysis_status_case = case(
-            (DocumentAssetContext.analysis_result != None, AssetAnalysisStatus.COMPLETED.value),
-            else_=AssetAnalysisStatus.NOT_ANALYZED.value
+            (DocumentAssetContext.analysis_result != None, AssetAnalysisStatus.completed.value),
+            else_=AssetAnalysisStatus.not_analyzed.value
         ).label("analysis_status")
 
         # The base query now selects from DocumentAssetContext and includes the dynamic status.
@@ -171,7 +171,7 @@ class AssetService:
                 "model_version": None
             }
 
-            if context and asset.analysis_status == AssetAnalysisStatus.COMPLETED:
+            if context and asset.analysis_status == AssetAnalysisStatus.completed:
                 asset_data['analysis_result'] = context.analysis_result
                 asset_data['model_version'] = f"{context.model_provider}/{context.model_name}" if context.model_name else None
             
@@ -303,7 +303,7 @@ class AssetService:
         document = context.document
         
         try:
-            asset.analysis_status = AssetAnalysisStatus.IN_PROGRESS
+            asset.analysis_status = AssetAnalysisStatus.in_progress
             self.db.commit()
 
             vlm_client = self.ai_provider_service.get_vlm_client_with_fallback(user_id, document.knowledge_space_id)
@@ -329,7 +329,7 @@ class AssetService:
             context.analysis_result = description
             context.model_provider = getattr(vlm_client, 'provider', 'unknown')
             context.model_name = vlm_client.model_name
-            asset.analysis_status = AssetAnalysisStatus.COMPLETED
+            asset.analysis_status = AssetAnalysisStatus.completed
             self.db.commit()
 
             # After successful analysis, we can directly use get_analysis_result
@@ -341,7 +341,7 @@ class AssetService:
                 raise HTTPException(status_code=500, detail="Failed to retrieve analysis result after completion.")
 
         except Exception as e:
-            asset.analysis_status = AssetAnalysisStatus.FAILED
+            asset.analysis_status = AssetAnalysisStatus.failed
             self.db.commit()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"VLM analysis failed: {e}")
 
@@ -359,21 +359,27 @@ class AssetService:
         """
         context = self._get_existing_analysis(asset_id, document_id)
 
-        if not context or not context.asset:
+        if not context:
             return None
 
-        asset = context.asset
-        
-        if asset.analysis_status == AssetAnalysisStatus.COMPLETED and context.analysis_result:
+        # Determine status based on analysis result existence (consistent with get_assets method)
+        # This is more reliable than checking asset.analysis_status which might be outdated
+        if context.analysis_result:
+            # If analysis result exists, return it with completed status
             return schemas.AssetAnalysisResponse(
-                analysis_status=asset.analysis_status.value,
+                analysis_status=AssetAnalysisStatus.completed.value,
                 description=context.analysis_result,
                 model_version=f"{context.model_provider}/{context.model_name}" if context.model_name else None,
                 detail="Analysis successfully completed."
             )
-        
-        # For any other status, we consider the result not ready/available for this endpoint's purpose.
-        return None
+        else:
+            # If no analysis result exists, return not_analyzed status
+            return schemas.AssetAnalysisResponse(
+                analysis_status=AssetAnalysisStatus.not_analyzed.value,
+                description=None,
+                model_version=None,
+                detail="Analysis not yet completed."
+            )
 
 
     def get_assets_by_document_id(self, document_id: uuid.UUID) -> List[Asset]:

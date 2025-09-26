@@ -91,7 +91,7 @@ def enqueue_job_sessions(db: Session, job_id: str, request: schemas.JobExecution
                 )
                 db.add(queue_entry)
                 sessions_created_count += 1
-        
+
         if sessions_created_count > 0:
             db.commit()
         else:
@@ -138,7 +138,7 @@ def schedule_next_session(db: Session) -> str | None:
 
             next_item.status = 'PROCESSING'
             start_assessment(db=db, session_id=next_item.session_id)
-            
+
             session_id_to_dispatch = str(next_item.session_id)
             queue_item_id_to_dispatch = str(next_item.id)
             config_to_dispatch = next_item.execution_config
@@ -175,5 +175,5 @@ def schedule_next_session(db: Session) -> str | None:
                     logging.info(f"Successfully rolled back queue and session status for session {session_id_to_dispatch} to PENDING/READY.")
             except Exception as rollback_e:
                 logging.error(f"FATAL: Failed to rollback state for session {session_id_to_dispatch}: {rollback_e}", exc_info=True)
-    
+
     return None

@@ -60,8 +60,8 @@ const AppLayout: React.FC = () => {
       <Content style={{ margin: '24px' }}>
         <Workspace 
           collapsed={collapsed} 
-          activeSession={activeSession}
-          setActiveSession={setActiveSession}
+          activeControl={activeControl}
+          setActiveControl={setActiveControl}
         />
       </Content>
       

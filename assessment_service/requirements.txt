@@ -6,3 +6,9 @@ sqlalchemy
 pytransitions
 Jinja2
 periodiq
+dramatiq[redis]
+redis
+setuptools
+pydantic
+transitions
+psycopg2-binary

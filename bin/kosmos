@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""
+Kosmos CLI - 优雅的二进制命令入口点
+
+这个脚本提供了一个直接的kosmos命令，替代了python -m cli.main的调用方式。
+它会自动处理Python路径和环境设置。
+"""
+
+import os
+import sys
+import subprocess
+
+def main():
+    # 获取脚本所在目录的父目录（项目根目录）
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    
+    # 设置Python路径
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    # 切换到项目根目录
+    os.chdir(project_root)
+    
+    try:
+        # 导入并运行CLI主函数
+        from cli.main import main as cli_main
+        cli_main()
+    except ImportError as e:
+        print(f"错误：无法导入Kosmos CLI模块: {e}", file=sys.stderr)
+        print("请确保您在正确的Kosmos项目目录中运行此命令。", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"错误：{e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

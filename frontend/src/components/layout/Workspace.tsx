@@ -4,13 +4,14 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined
 } from '@ant-design/icons'
-import SessionNav from '@/components/modules/SessionNav'
-import ControlDetail from '@/components/modules/ControlDetail'
-import AssessmentResult from '@/components/modules/AssessmentResult'
-import EvidencePreview from '@/components/modules/EvidencePreview'
-import SessionHistory from '@/components/modules/SessionHistory'
-import CommentInput from '@/components/modules/CommentInput'
-import { useSystemConfig } from '@/context/SystemConfigContext'
+import SessionNav from '../modules/SessionNav'
+import ControlDetail from '../modules/ControlDetail'
+import AssessmentResult from '../modules/AssessmentResult'
+import EvidencePreview from '../modules/EvidencePreview'
+import SessionHistory from '../modules/SessionHistory'
+import CommentInput from '../modules/CommentInput'
+import ErrorBoundary from '../common/ErrorBoundary'
+import { useSystemConfig } from '../../context/SystemConfigContext'
 
 const { Sider, Content } = Layout
 
@@ -32,10 +33,10 @@ const Workspace: React.FC<WorkspaceProps> = ({
   const toggleHistoryCollapse = () => {
     setHistoryCollapsed(!historyCollapsed)
   }
-
+  
   return (
     <Layout style={{ height: 'calc(100vh - 160px)' }}>
-      {/* 左侧Session导航栏 */}
+      {/* 左侧控制项导航栏 */}
       <Sider 
         width={300} 
         collapsed={collapsed} 
@@ -50,11 +51,20 @@ const Workspace: React.FC<WorkspaceProps> = ({
           height: '100%'
         }}
       >
-        <SessionNav 
-          activeSession={activeSession}
-          setActiveSession={setActiveSession}
-          jobId={config.assessmentJobId}
-        />
+        <ErrorBoundary fallback={
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <div>控制项导航加载失败</div>
+            <div style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+              请检查数据格式或刷新页面重试
+            </div>
+          </div>
+        }>
+          <ControlNav 
+            activeControl={activeControl}
+            setActiveControl={setActiveControl}
+            jobId={config.assessmentJobId}
+          />
+        </ErrorBoundary>
       </Sider>
       
       {/* 主内容区 */}
@@ -74,7 +84,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
             flex: 1,
             overflow: 'hidden'
           }}>
-            {/* Session详情 */}
+            {/* 控制项详情 */}
             <div style={{ 
               flex: 1, 
               background: '#fff', 
@@ -84,7 +94,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
               flexDirection: 'column',
               overflow: 'auto'
             }}>
-              <ControlDetail activeControl={activeSession} />
+              <ControlDetail activeControl={activeControl} />
             </div>
             
             {/* 评估结论 */}
@@ -97,7 +107,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
               flexDirection: 'column',
               overflow: 'auto'
             }}>
-              <AssessmentResult activeControl={activeSession} />
+              <AssessmentResult activeControl={activeControl} jobId={config.assessmentJobId} />
             </div>
             
             {/* 证据预览 */}
@@ -110,7 +120,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
               flexDirection: 'column',
               overflow: 'auto'
             }}>
-              <EvidencePreview activeControl={activeSession} />
+              <EvidencePreview activeControl={activeControl} />
             </div>
           </div>
           
@@ -121,7 +131,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
             border: '1px solid #f0f0f0',
             minHeight: '120px'
           }}>
-            <CommentInput activeControl={activeSession} />
+            <CommentInput activeControl={activeControl} />
           </div>
         </Content>
       </Layout>

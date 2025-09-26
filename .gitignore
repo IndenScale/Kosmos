@@ -12,7 +12,7 @@
 .kosmos_cli_state.json
 
 # 产物
-content_extraction
+./content_extraction
 Artifacts
 todos/*
 reports/
@@ -33,6 +33,8 @@ logs
 *.db-shm
 *.db-wal
 *.db.bak
+volumes/
+/content_extraction/
 
 # 集成
 relic_system
@@ -41,8 +43,8 @@ relic_system
 .pids/
 
 DEPLOYMENT_NOTES.md
-docker*
-Docker*
+# docker*
+# Docker*
 
 # 包
 node_models/

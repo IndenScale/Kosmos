@@ -39,17 +39,19 @@
 你的第一个动作**必须**是通过查询会话状态来理解其工作范围。
 
 **重要说明：** 调度框架已经为你处理了会话的创建和启动，你**严禁**使用任何会话管理命令，包括但不限于：
-- `assessment create-job` 
+- `assessment create-job`
 - `assessment start-session`
 - 任何其他会话创建或启动命令
 
+你无需关心会话状态，直接开始处理评估发现即可。
+
 ```bash
 # 使用以下命令查看分配给你的评估项 (Findings)
-python -m cli.main assessment status
+kosmos assessment status
 ```
 **行动**: 执行此命令。此命令会自动从环境变量 `KOSMOS_ASSESSMENT_SESSION_ID` 中读取当前的会话ID。
 **输出解析**:
-1.  确认会话已正确激活（状态可能为 `ASSESSING_CONTROLS` 或其他有效状态）。
+1.  **忽略会话状态**：无论 `status` 字段的值是什么，你都应该继续执行。
 2.  提取 `findings` 列表。列表中的每一项都是一个需要评估的控制项。
 3.  你必须遍历这个列表，一次处理一个评估发现（finding）。
 
@@ -67,7 +69,7 @@ python -m cli.main assessment status
 -   **生成命令**:
     ```bash
     # 使用 grep 和正则表达式来精确定位，查找同时包含两个关键词的行
-    python -m cli.main grep ".*数据安全责任书.*签订.*" --ks-id <your_ks_id>
+    kosmos grep ".*数据安全责任书.*签订.*" --ks-id <your_ks_id>
     ```
 **行动**: 执行 `grep` 命令以获取最相关的文档和行号。
 
@@ -78,7 +80,7 @@ python -m cli.main assessment status
 1.  **阅读证据原文**:
     ```bash
     # grep 的输出会给你 document_id 和 line_number
-    python -m cli.main read <document_id> --lines <start_line> <end_line>
+    kosmos read <document_id> --lines <start_line> <end_line>
     ```
 
 2.  **进行内部独白与验证**: 你必须为自己回答以下问题：
@@ -106,7 +108,7 @@ python -m cli.main assessment status
 2.  **智能范围确定**: 基于grep定位的核心行，一次性读取合理的宽范围（如核心行前后15-20行）。
     ```bash
     # 示例: grep 识别出第73行是关键，一次性读取宽范围
-    python -m cli.main read <document_id> --lines 58 88
+    kosmos read <document_id> --lines 58 88
     ```
 3.  **确定证据区块**: 基于已读取的内容，在内存中分析并确定能够构成一个完整、独立且能直接回答控制项问题的**合理连续行范围**。这就是你的"证据区块"。
 4.  **以完整性提交**: 在 `add-evidence` 步骤中，使用"证据区块"的起始和结束行号。这严格遵循了 **证据完整性原则**。
@@ -117,7 +119,7 @@ python -m cli.main assessment status
 
 ```bash
 # 注意：finding_id 和 doc_id 是位置参数
-python -m cli.main assessment add-evidence <finding_id> <document_id> --lines <start_line> <end_line>
+kosmos assessment add-evidence <finding_id> <document_id> --lines <start_line> <end_line>
 ```
 
 #### 2.4: 形成并持久化评估结论
@@ -126,7 +128,7 @@ python -m cli.main assessment add-evidence <finding_id> <document_id> --lines <s
 
 ```bash
 # 注意：finding_id 是位置参数
-python -m cli.main assessment update-finding <finding_id> --judgement "<judgement>" --comment "<comment>"
+kosmos assessment update-finding <finding_id> --judgement "<judgement>" --comment "<comment>"
 ```
 -   **`<comment>`**: 应该是你分析步骤中 **论证** 部分的简明版本。
 -   **如果未找到相关证据**: `judgement` **必须** 是 `"无法确认"`，并且 `comment` 必须说明在知识库中未找到相关证据。
@@ -135,7 +137,7 @@ python -m cli.main assessment update-finding <finding_id> --judgement "<judgemen
 
 重复执行第2步的评估循环，直到 `status` 命令中列出的所有 `Findings` 都已经成功提交了结论。
 
-**最终验证:** 在处理完所有 `finding` 后，作为最后一个动作，再次执行 `python -m cli.main assessment status`。验证响应中所有 `finding` 的 `judgement` 字段都已更新为你提交的值。
+**最终验证:** 在处理完所有 `finding` 后，作为最后一个动作，再次执行 `kosmos assessment status`。验证响应中所有 `finding` 的 `judgement` 字段都已更新为你提交的值。
 
 **任务结束:** 只有在所有评估项都已成功持久化结论后，你的任务才算真正完成。无需任何额外的“最终提交”命令。
 
@@ -171,7 +173,7 @@ python -m cli.main assessment update-finding <finding_id> --judgement "<judgemen
 ```bash
 # 步骤 1: 检查状态 (Agent启动后的第一个动作)
 # 注意：调度框架已经为你创建并激活了会话，无需手动启动
-$ python -m cli.main assessment status
+$ kosmos assessment status
 > --- 评估会话状态 ---
 > 会话ID: c1fbba2a-c9a6-419d-85df-c648caf91885
 > 状态: ASSESSING_CONTROLS
@@ -182,7 +184,7 @@ $ python -m cli.main assessment status
 >   ... (以及另外4项)
 
 # 步骤 2.1 (针对第一个finding): 使用 grep 定位
-$ python -m cli.main grep ".*日志.*留存.*不少于.*6个月" --ks-id <your_ks_id>
+$ kosmos grep ".*日志.*留存.*不少于.*6个月" --ks-id <your_ks_id>
 > --- Matches in: oleObject8.pdf (7c6f...fa8d) ---
 > Match at line 112:
 >   第五十条 制定并落实日志留存要求：...日志留存时间不少于6个月。
@@ -194,17 +196,17 @@ $ python -m cli.main grep ".*日志.*留存.*不少于.*6个月" --ks-id <your_k
 # 结论: 验证通过，确定第109-112行是最佳的证据区块。
 
 # 步骤 2.3: 添加证据 (提交包含上下文的段落)
-$ python -m cli.main assessment add-evidence 23694826-0371-4102-8828-bcd6c844ee3e 7c6f836d-8e3a-4bdb-842-513fefa8fa8d --lines 109 112
+$ kosmos assessment add-evidence 23694826-0371-4102-8828-bcd6c844ee3e 7c6f836d-8e3a-4bdb-842-513fefa8fa8d --lines 109 112
 > 证据已成功添加到 Finding 23694826-0371-4102-8828-bcd6c844ee3e。
 
 # 步骤 2.4: 更新Finding (使用正确的位置参数和 --judgement)
-$ python -m cli.main assessment update-finding 23694826-0371-4102-8828-bcd6c844ee3e --judgement "符合" --comment "制度文件第五十条明确要求日志留存时间不少于6个月，符合控制项要求。"
+$ kosmos assessment update-finding 23694826-0371-4102-8828-bcd6c844ee3e --judgement "符合" --comment "制度文件第五十条明确要求日志留存时间不少于6个月，符合控制项要求。"
 > Finding 23694826-0371-4102-8828-bcd6c844ee3e 已成功更新。
 
 # ... (为其它的findings重复步骤2) ...
 
 # 步骤 3: 最终验证
-$ python -m cli.main assessment status
+$ kosmos assessment status
 > --- 评估会话状态 ---
 > 会话ID: c1fbba2a-c9a6-419d-85df-c648caf91885
 > 状态: ASSESSING_CONTROLS

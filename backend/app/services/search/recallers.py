@@ -44,23 +44,43 @@ class Recallers:
 
     def keyword_recall(self, query: str, knowledge_space_id: uuid.UUID, top_k: int, document_id: uuid.UUID | None = None) -> List[Dict]:
         """
-        Performs keyword search using the SQLite FTS5 virtual table, scoped to the
-        correct knowledge space and optional document.
+        Performs keyword search using the full-text search virtual table, scoped to the
+        correct knowledge space and optional document. Supports both SQLite and PostgreSQL.
         """
-        sanitized_query = f'"{query.replace('"', '""')}"'
-
-        # Join FTS -> chunks -> documents to filter by knowledge_space_id and document_id
-        sql_query_str = """
-            SELECT
-                c.id AS chunk_id,
-                fts.rank
-            FROM chunks_fts AS fts
-            JOIN chunks AS c ON fts.rowid = c.rowid
-            JOIN documents AS d ON c.document_id = d.id
-            WHERE
-                fts.chunks_fts MATCH :query
-                AND d.knowledge_space_id = :knowledge_space_id
-        """
+        from sqlalchemy import create_engine
+        # Determine database dialect to use appropriate FTS syntax
+        dialect_name = self.db.bind.dialect.name
+        
+        if dialect_name == 'postgresql':
+            # PostgreSQL uses @@ operator for full-text search
+            # Using plainto_tsquery for natural language search
+            # Using 'simple' config which works for any language without special dictionaries
+            sanitized_query = query.replace("'", "''")  # Escape single quotes for PostgreSQL
+            sql_query_str = """
+                SELECT
+                    c.id AS chunk_id,
+                    ts_rank(to_tsvector('simple', c.raw_content), plainto_tsquery('simple', :query)) AS rank
+                FROM chunks AS c
+                JOIN documents AS d ON c.document_id = d.id
+                WHERE
+                    to_tsvector('simple', c.raw_content) @@ plainto_tsquery('simple', :query)
+                    AND d.knowledge_space_id = :knowledge_space_id
+            """
+        else:
+            # Default to SQLite FTS5 syntax
+            sanitized_query = f'"{query.replace('"', '""')}"'
+            # Join FTS -> chunks -> documents to filter by knowledge_space_id and document_id
+            sql_query_str = """
+                SELECT
+                    c.id AS chunk_id,
+                    fts.rank
+                FROM chunks_fts AS fts
+                JOIN chunks AS c ON fts.rowid = c.rowid
+                JOIN documents AS d ON c.document_id = d.id
+                WHERE
+                    fts.chunks_fts MATCH :query
+                    AND d.knowledge_space_id = :knowledge_space_id
+            """
         
         params = {
             "query": sanitized_query,
@@ -71,7 +91,12 @@ class Recallers:
             sql_query_str += " AND d.id = :document_id"
             params["document_id"] = str(document_id)
 
-        sql_query_str += " ORDER BY rank LIMIT :limit;"
+        # Use different ordering depending on database type
+        dialect_name = self.db.bind.dialect.name
+        if dialect_name == 'postgresql':
+            sql_query_str += " ORDER BY rank DESC LIMIT :limit;"
+        else:
+            sql_query_str += " ORDER BY rank LIMIT :limit;"
         params["limit"] = top_k
         
         sql_query = text(sql_query_str)
@@ -79,10 +104,19 @@ class Recallers:
         try:
             results = self.db.execute(sql_query, params).fetchall()
             
-            return [
-                {"chunk_id": str(row.chunk_id), "score": 1.0 / (1.0 - row.rank)}
-                for row in results
-            ]
+            # Adjust the score calculation based on database type
+            if dialect_name == 'postgresql':
+                # In PostgreSQL, higher rank means more relevant
+                return [
+                    {"chunk_id": str(row.chunk_id), "score": row.rank}
+                    for row in results
+                ]
+            else:
+                # In SQLite FTS, lower rank means more relevant
+                return [
+                    {"chunk_id": str(row.chunk_id), "score": 1.0 / (1.0 + row.rank)}
+                    for row in results
+                ]
         except Exception as e:
             print(f"Error during keyword recall: {e}")
             return []

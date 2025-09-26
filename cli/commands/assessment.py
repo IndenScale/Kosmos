@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 from cli import utils
 from cli.knowledge_base_client import KosmosClient
 from cli.config import CliConfig
+from cli.assessment_client.client import _handle_api_error
 import argparse
 
 # --- Configuration for Assessment Service ---
@@ -90,7 +91,7 @@ def get_session_api(token: str, session_id: str):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        handle_api_error(e)
+        _handle_api_error(e)
 
 def add_evidence_api(token: str, session_id: str, finding_id: str, doc_id: str, start: int, end: int):
     url = urljoin(ASSESSMENT_API_BASE_URL, f"sessions/{session_id}/agent/findings/{finding_id}/evidence")
@@ -101,7 +102,7 @@ def add_evidence_api(token: str, session_id: str, finding_id: str, doc_id: str, 
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        handle_api_error(e)
+        _handle_api_error(e)
 
 def update_finding_api(token: str, session_id: str, finding_id: str, judgement: str, comment: str, supplement: str | None):
     url = urljoin(ASSESSMENT_API_BASE_URL, f"sessions/{session_id}/agent/findings/{finding_id}")
@@ -118,7 +119,7 @@ def update_finding_api(token: str, session_id: str, finding_id: str, judgement: 
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        handle_api_error(e)
+        _handle_api_error(e)
 
 def session_action_api(token: str, session_id: str, action: str, reason: str | None = None):
     url = urljoin(ASSESSMENT_API_BASE_URL, f"sessions/{session_id}/{action}")
@@ -131,7 +132,7 @@ def session_action_api(token: str, session_id: str, action: str, reason: str | N
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        handle_api_error(e)
+        _handle_api_error(e)
 
 # --- 结果打印函数 ---
 

@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path="../.env")
 
-# Get the database URL from environment variables, with a fallback for SQLite
-DATABASE_URL = os.getenv("ASSESSMENT_DATABASE_URL", "sqlite:///./assessment.db")
+# Get the database URL from environment variables, with a fallback for PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://kosmos:kosmos123@localhost:5432/kosmos")
 
 # The connect_args are specific to SQLite and are needed to allow multithreading,
 # which is relevant for FastAPI's async nature.

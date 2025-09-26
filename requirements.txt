@@ -1,10 +1,9 @@
 fastapi
-uvicorn[standard]
+uvicorn>=0.15.0
 sqlalchemy
 psycopg2-binary
 minio
 pymilvus
-milvus-cli
 redis
 requests
 dramatiq[redis]
@@ -26,3 +25,5 @@ jinja2
 transitions
 zipstream
 psutil
+Pillow
+click>=8.1.7

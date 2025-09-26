@@ -10,7 +10,7 @@ class Ontology(Base):
     knowledge_space_id = Column(UUIDChar, ForeignKey("knowledge_spaces.id"), unique=True, nullable=False)
     
     # This uses a string for the foreign key to avoid circular import issues with OntologyVersion
-    active_version_id = Column(UUIDChar, ForeignKey("ontology_versions.id"), nullable=True)
+    active_version_id = Column(UUIDChar, ForeignKey("ontology_versions.id", ondelete="SET NULL"), nullable=True)
 
     # --- Relationships ---
     knowledge_space = relationship("KnowledgeSpace", back_populates="ontology")

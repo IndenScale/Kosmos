@@ -1,0 +1,73 @@
+# Generated for  standalone deploy
+version: 2.0
+
+#----------------------+------------------------------------------------------------+------------
+# Cluster Config      | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+cluster:
+  enable: false
+  nodeID: 0
+
+#----------------------+------------------------------------------------------------+------------
+# ETCD Config         | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+etcd:
+  endpoints:
+    - '10.255.3.3:2379'
+  rootPath: 'by-dev'           # The root path where data is stored in etcd
+  metaSubPath: 'meta'          # metaRootPath = rootPath + '/' + metaSubPath
+  kvSubPath: 'kv'              # kvRootPath = rootPath + '/' + kvSubPath
+
+#----------------------+------------------------------------------------------------+------------
+# Minio Config        | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+minio:
+  address: 'minio'              # Address of MinIO/S3. Not used if local storage is enabled
+  port: 9000                   # Port of MinIO/S3. Not used if local storage is enabled
+  accessKeyID: 'minioadmin'    # Access key ID for MinIO/S3. Not used if local storage is enabled
+  secretAccessKey: 'minioadmin' # Secret access key for MinIO/S3. Not used if local storage is enabled
+  useSSL: false                # SSL encryption for MinIO/S3 connection. Not used if local storage is enabled
+  bucketName: 'milvus-bucket'  # Bucket name for MinIO/S3 storage
+  rootPath: 'files'            # Root path in MinIO/S3 for storing data. Not used if local storage is enabled
+  useIAM: false                # Whether to use IAM role to access MinIO/S3. Not used if local storage is enabled
+  iamEndpoint: ''              # IAM endpoint for MinIO/S3. Not used if local storage is enabled
+  logLevel: 'info'             # Log level for MinIO/S3
+
+#----------------------+------------------------------------------------------------+------------
+# Local Storage Config| Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+localStorage:
+  path: '/var/lib/milvus'      # Local path to storage
+
+#----------------------+------------------------------------------------------------+------------
+# Data coord Config   | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+dataCoord:
+  enableGarbageCollection: true # Enable automatic garbage collection of old data
+  gcInterval: 3600             # Garbage collection interval in seconds
+
+#----------------------+------------------------------------------------------------+------------
+# Log Config          | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+log:
+  level: 'info'                # Log level ("debug", "info", "warn", "error", "fatal")
+  file:
+    rootPath: ''               # Directory to store log files, '/milvus/logs' by default
+    maxSize: 300               # Maximum size in megabytes of each log file
+    maxAge: 10                 # Maximum number of days to retain old log files
+    maxBackups: 20             # Maximum number of old log files to retain
+  format: 'text'               # Log format ('text' or 'json')
+
+#----------------------+------------------------------------------------------------+------------
+# Metric Config       | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+metric:
+  enable: true                 # Enable metric collection
+  address: 'localhost'         # Address to expose metrics
+  port: 9091                   # Port to expose metrics
+
+#----------------------+------------------------------------------------------------+------------
+# Tracing Config      | Description                                                | Default
+#----------------------+------------------------------------------------------------+------------
+tracing:
+  enabled: false               # Enable tracing

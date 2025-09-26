@@ -1,0 +1,50 @@
+# Knowledge Base Ingestion Worker Dockerfile
+# Uses the same base image as the main knowledge base service for consistency
+FROM python:3.13.5-slim
+
+# Change APT sources to Alibaba Cloud mirror and install system dependencies
+RUN echo "deb [trusted=yes] http://mirrors.aliyun.com/debian/ bookworm main non-free-firmware" > /etc/apt/sources.list && \
+    echo "deb [trusted=yes] http://mirrors.aliyun.com/debian/ bookworm-updates main non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb [trusted=yes] http://mirrors.aliyun.com/debian/ bookworm-backports main non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb [trusted=yes] http://mirrors.aliyun.com/debian-security/ bookworm-security main non-free-firmware" >> /etc/apt/sources.list && \
+    apt-get update && apt-get install -y \
+    curl \
+    gcc \
+    postgresql-client \
+    libpq-dev \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements file
+COPY backend/requirements_workers.txt ./
+
+# Install Python dependencies with Alibaba Cloud mirror
+RUN pip install --no-cache-dir --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install --no-cache-dir -r requirements_workers.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+# Copy application code
+COPY . .
+
+# Install supervisor for process management
+RUN pip install --no-cache-dir supervisor
+
+# Create supervisor configuration directory
+RUN mkdir -p /etc/supervisor/conf.d
+
+# Create supervisor configuration file for all knowledge base workers
+COPY backend/supervisor/knowledge_workers.conf /etc/supervisor/conf.d/knowledge_workers.conf
+
+# Expose a port for potential health checks (though this container will run multiple services)
+EXPOSE 8012
+
+# Start command - run supervisor to manage all processes
+# Run as root to avoid privilege issues with supervisor
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/knowledge_workers.conf"]

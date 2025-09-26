@@ -4,8 +4,9 @@ from typing import Optional, Literal
 
 class Settings(BaseSettings):
     # Database Configuration - supports either SQLite or PostgreSQL
+    DATABASE_URL: Optional[str] = None  # Allow direct DATABASE_URL setting
     SQLITE_DATABASE_URL: Optional[str] = None
-
+    # print(SQLITE_DATABASE_URL)  # May want to remove this debug print
     POSTGRES_USER: Optional[str] = None
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_DB: Optional[str] = None
@@ -13,13 +14,18 @@ class Settings(BaseSettings):
     POSTGRES_PORT: Optional[int] = None
 
     @property
-    def DATABASE_URL(self) -> str:
-        if self.SQLITE_DATABASE_URL:
+    def computed_DATABASE_URL(self) -> str:
+        # If DATABASE_URL is explicitly set, use it
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        # Otherwise, if SQLITE_DATABASE_URL is set (and not falsy), use it
+        elif self.SQLITE_DATABASE_URL and self.SQLITE_DATABASE_URL.lower() != "none":
             return self.SQLITE_DATABASE_URL
+        # Otherwise, construct from PostgreSQL parameters
         elif all([self.POSTGRES_USER, self.POSTGRES_PASSWORD, self.POSTGRES_DB, self.POSTGRES_HOST, self.POSTGRES_PORT]):
             return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         else:
-            raise ValueError("Database configuration is missing. Please set either SQLITE_DATABASE_URL or all POSTGRES_* variables in your .env file.")
+            raise ValueError("Database configuration is missing. Please set DATABASE_URL, or SQLITE_DATABASE_URL, or all POSTGRES_* variables in your environment.")
 
     # Minio
     MINIO_ENDPOINT: str

@@ -1,0 +1,7 @@
+{
+  "selectedAuthType": "openai",
+  "checkpointing": {
+    "enabled": true
+  },
+  "contextFileName": "AGENTS.md"
+}
